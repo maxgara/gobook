@@ -117,7 +117,7 @@ func (s *ChatServer) ReadLast(args Args, resp *[]Message) error {
 
 // listen for 'q' key to quit
 func CmdRead(ch chan string) {
-	buff := make([]byte, 256)
+	buff := make([]byte, 1)
 	for {
 		os.Stdin.Read(buff)
 		if buff[0] == 'q' {
