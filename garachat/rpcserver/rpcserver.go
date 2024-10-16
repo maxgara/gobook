@@ -72,19 +72,19 @@ func (s *ChatServer) NewUser(args Args, resp *uint64) error {
 
 // rpc func - submit message
 func (s *ChatServer) Submit(args Args, resp *string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.auth(args) {
 		return fmt.Errorf("bad username or password. Please try again")
 	}
-	m := Message{args.Usr, args.Msg}
-	s.msgs = append(s.msgs, m)
-	ms := m.Msg
+	m := args.Msg
 	//remove newlines
-	if ms[len(ms)-1] == '\n' {
-		ms = ms[:len(ms)-2]
+	if m[len(m)-1] == '\n' {
+		m = m[:len(m)-1]
 	}
-	fmt.Printf("INFO:CHAT \"%v\"", ms)
+	msg := Message{args.Usr, m}
+	s.mu.Lock()
+	s.msgs = append(s.msgs, msg)
+	s.mu.Unlock()
+	fmt.Printf("INFO:CHAT \"%v\"", m)
 	return nil
 }
 

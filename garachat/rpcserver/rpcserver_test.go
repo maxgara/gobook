@@ -1,6 +1,7 @@
 package rpcserver
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -43,6 +44,7 @@ func TestSubmitRead(t *testing.T) {
 	svr.NewUser(args, &pw)
 	args.Token = pw
 	var resp string //not really used
+	fmt.Printf("trying submit:%v\n", args)
 	if err := svr.Submit(args, &resp); err != nil {
 		t.Fail()
 	}
