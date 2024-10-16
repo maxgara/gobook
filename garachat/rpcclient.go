@@ -44,7 +44,7 @@ func connect() error {
 		fmt.Printf("pw created:'%d'\n", pw)
 	}
 	fmt.Println("---CHAT---")
-	client.Call("ChatServer.ReadLast", rpcserver.Args{T: pw, Usr: name, N: 1000}, &msgs) //should never return error
+	client.Call("ChatServer.ReadLast", rpcserver.Args{Token: pw, Usr: name, N: 1000}, &msgs) //should never return error
 	if err != nil {
 		return fmt.Errorf("readlast err: %v", err)
 	}
@@ -55,7 +55,7 @@ func connect() error {
 	go func() {
 		for {
 			time.Sleep(1000000 * 2) //two second polling delay
-			client.Call("ChatServer.ReadFrom", rpcserver.Args{Usr: name, T: pw, Idx: msgReadIdx}, &msgs)
+			client.Call("ChatServer.ReadFrom", rpcserver.Args{Usr: name, Token: pw, Idx: msgReadIdx}, &msgs)
 			//print new messages
 			for _, msg := range msgs {
 				fmt.Printf("%v\n", msg)
@@ -86,7 +86,7 @@ func connect() error {
 			//send the message
 			m := string(bytes)
 			var resp string
-			var args = rpcserver.Args{name, pw, msgReadIdx, 0, m}
+			var args = rpcserver.Args{Usr: name, Token: pw, Idx: msgReadIdx, N: 0, Msg: m}
 			err = client.Call("ChatServer.Submit", &args, &resp)
 			if err != nil {
 				fmt.Printf("submit %v: %v\n", args, err)

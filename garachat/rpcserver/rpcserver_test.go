@@ -29,7 +29,7 @@ func TestCreateAuth(t *testing.T) {
 			continue
 		}
 		//test auth
-		args.T = pw
+		args.Token = pw
 		if !svr.auth(args) {
 			t.Fail()
 		}
@@ -41,7 +41,7 @@ func TestSubmitRead(t *testing.T) {
 	args := Args{"max", 0, 0, 0, "test"}
 	var pw uint64
 	svr.NewUser(args, &pw)
-	args.T = pw
+	args.Token = pw
 	var resp string //not really used
 	if err := svr.Submit(args, &resp); err != nil {
 		t.Fail()

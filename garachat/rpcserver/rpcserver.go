@@ -9,23 +9,25 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	"sync"
 )
 
 // allow chat client RPC to create users, send chat messsages, and read the chat log
 type ChatServer struct {
 	creds map[string]uint64 //user creds
 	msgs  []Message         // message log
+	mu    sync.Mutex
 }
 type Message struct {
 	Usr string
 	Msg string
 }
 type Args struct {
-	Usr string //username
-	T   uint64 //pseudo auth token
-	Idx int    //read index in chatlog
-	N   int    // number of messages to retreive when calling ReadLast
-	Msg string //used for sending a new message
+	Usr   string //username
+	Token uint64 //pseudo auth token
+	Idx   int    //read index in chatlog
+	N     int    // number of messages to retreive when calling ReadLast
+	Msg   string //used for sending a new message
 }
 
 func (m Message) String() string {
@@ -34,12 +36,14 @@ func (m Message) String() string {
 
 // authenticate user
 func (s *ChatServer) auth(args Args) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key, ok := s.creds[args.Usr]
 	if !ok {
 		fmt.Printf("INFO: failed auth: nonexistent user %s\n", args.Usr)
 		return false
 	}
-	if key != args.T {
+	if key != args.Token {
 		fmt.Printf("INFO: failed auth: bad password for user %s. Creds:%v\n", args.Usr, s.creds)
 		return false
 	}
@@ -48,6 +52,8 @@ func (s *ChatServer) auth(args Args) bool {
 
 // rpc func - create user
 func (s *ChatServer) NewUser(args Args, resp *uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.creds[args.Usr]; ok {
 		return fmt.Errorf("user %v already exists", args.Usr)
 	}
@@ -66,6 +72,8 @@ func (s *ChatServer) NewUser(args Args, resp *uint64) error {
 
 // rpc func - submit message
 func (s *ChatServer) Submit(args Args, resp *string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !s.auth(args) {
 		return fmt.Errorf("bad username or password. Please try again")
 	}
@@ -82,6 +90,8 @@ func (s *ChatServer) Submit(args Args, resp *string) error {
 
 // rpc func - get chatlog updates from server
 func (s *ChatServer) ReadFrom(args Args, resp *[]Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !s.auth(args) {
 		return fmt.Errorf("bad username or password. Please try again")
 	}
@@ -92,6 +102,8 @@ func (s *ChatServer) ReadFrom(args Args, resp *[]Message) error {
 	return nil
 }
 func (s *ChatServer) ReadLast(args Args, resp *[]Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !s.auth(args) {
 		return fmt.Errorf("bad username or password. Please try again")
 	}
@@ -121,6 +133,8 @@ func InitServer() *ChatServer {
 	svr.msgs = make([]Message, 0)
 	return svr
 }
+
+// start a chat server instance, register, listen and serve RPC calls on port :1234
 func Run() {
 	svr := InitServer()
 	rpc.Register(svr)
