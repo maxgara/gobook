@@ -69,22 +69,21 @@ func connect() error {
 		var bytes = make([]byte, BSIZE)
 		var i int
 		for {
-			n, err := os.Stdin.Read(bytes[i:])
-			//set err when user writes newline, drop the newline
-			for j, b := range bytes {
-				if b == '\n' && j != len(bytes) {
-					bytes = append(bytes[:j], bytes[j+1:]...) // remove the newline char from the send msg string
+			//read stdin to bytes until newline or EOF or length limit
+			b := bytes[i:i+1]
+			n, err := os.Stdin.Read(b)
+			if err != io.EOF && b != '\n'{
+				if err != nil{
+					panic()
 				}
-				if b == '\n' {
-					err = io.EOF //set flag EOF to send Message
+				if i+1 < BSIZE{
+					i++ 
+					continue
 				}
+				fmt.Printf("\nauto-sending message: buffer full\n")
 			}
-			if err == nil && i+n < BSIZE {
-				i += n //not sure if this ever happens. But if so keep reading, don't send.
-				continue
-			}
-			//send the message
-			m := string(bytes)
+			//send message to chat and start over
+			m := string(bytes[:i+n]) // include last byte read, usually newline
 			var resp string
 			var args = rpcserver.Args{name, pw, msgReadIdx, 0, m}
 			err = client.Call("ChatServer.Submit", &args, &resp)
