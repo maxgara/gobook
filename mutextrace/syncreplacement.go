@@ -8,27 +8,66 @@ import (
 	stdsync "sync"
 )
 
+const PRINTFRAMESFULL = 0
+const PRINTSHORTFRAMES = 1
+
 // keep track of what Mutexes are locked
 type Mutex struct {
 	sMutex  stdsync.Mutex
-	callers []*caller
-}
-type caller struct {
-	runtime.Frame
-	Pack  string
-	Short string
-	next  *caller
-	prev  *caller
+	callers []caller // where methods on the mutex have been called from
 }
 
+// represent a frame as a node in call graph
+type caller struct {
+	runtime.Frame
+	next  []*caller //child nodes
+	prev  []*caller //parent nodes
+	flags int       //flags representing the kind of caller (direct, indirect, active, inactive, etc.)
+}
+
+// Walk Caller linked list backwards
+func forEachParent(c *caller, f func(*caller) bool) error {
+	return nil
+}
+
+// convert runtime.Frames into *caller linked list
+func ftoc(frames *runtime.Frames) *caller {
+	c := new(caller)
+	first := c // keep direct caller to return
+	f, more := frames.Next()
+	for {
+		c.Function = f.Function
+		c.Line = f.Line
+		c.File = f.File
+		f, more = frames.Next()
+		//stop if this was the oldest frame in the stack trace
+		if !more {
+			break
+		}
+		//attach new parent to child
+		p := caller{next: []*caller{c}}
+		c.prev = []*caller{&p}
+		//move c pointer to parent
+		c = &p
+	}
+	return first
+}
+
+// walk caller tree forwards
+func forEachChild(c *caller, f func(*caller) bool) error {
+	return nil
+}
+
+// get common ancestor
+func common(c1 *caller, c2 *caller) {
+
+}
 func (m *Mutex) Lock() {
 	fmt.Println("hook Lock()")
-	c := getcallers()
-	if len(m.callers) == 0 {
-		m.callers = []*caller{}
-	}
-	m.callers = append(m.callers, c)
-	c.Rprint()
+	frames := getcFrames()
+	c := ftoc(frames)
+	fmt.Printf("caller:%v\n", *c)
+	m.callers = append(m.callers, *c)
 	m.sMutex.Lock()
 	// printFrames(f, 1)
 }
@@ -38,65 +77,16 @@ func (m *Mutex) Unlock() {
 	m.sMutex.Unlock()
 }
 
-// return direct Lock() *caller with linked prev callers
-func getcallers() (c *caller) {
-	c = new(caller)
+// get frames for current call stack
+func getcFrames() (f *runtime.Frames) {
 	var pcs = make([]uintptr, 20) //program counters for calling funcs
 	n := runtime.Callers(1, pcs)
 	pcs = pcs[:n] //remove extra buffer space
-	frames := runtime.CallersFrames(pcs)
-	var cc *caller
-	cc = c
-	for {
-		f, more := frames.Next()
-		cc.Function = f.Function //includes package path, we will break it up
-		cc.Line = f.Line
-		pathend := strings.LastIndex(c.Function, "/")
-		if pathend == -1 {
-			pathend = 0
-		}
-		dot := strings.Index(c.Function[pathend:], ".")
-		if dot != -1 {
-			cc.Pack = cc.Function[:dot]
-			cc.Short = cc.Function[dot:]
-		}
-
-		if !more {
-			break
-		}
-		//step back one frame
-		current := cc
-		prev := &caller{}
-		cc.prev = prev
-		cc = prev
-		cc.next = current
-	}
-	return c
+	return runtime.CallersFrames(pcs)
 }
 
-const PRINTFRAMESFULL = 0
-const PRINTSHORTFRAMES = 1
-
-// print frames to stdout in a readable format
-func printFrames(frames *runtime.Frames, mode int) {
-	const sep = "****************************"
-	// var pcs = make([]uintptr, 20)
-	// n := runtime.Callers(0, pcs)
-	// pcs = pcs[:n]
-	// frames := runtime.CallersFrames(pcs)
-	//print frames
-	for {
-		f, more := frames.Next()
-		fmt.Printf(SprintFrame(&f, mode))
-		if !more {
-			break
-		}
-	}
-	fmt.Println(sep)
-}
-
-// print one frame in a nice format
-func SprintFrame(f *runtime.Frame, mode int) string {
+// print a frame for debugging
+func sprintFrame(f *runtime.Frame, mode int) string {
 	const sep = "****************************"
 	file := f.File
 	line := f.Line
@@ -120,12 +110,16 @@ func SprintFrame(f *runtime.Frame, mode int) string {
 	return ""
 }
 
-// recursively print callers
-func (c *caller) Rprint() {
-	str := SprintFrame(&c.Frame, 0)
-	fmt.Print(str)
-	if c.prev == nil {
-		return
+// break a function call like github.com/x/mutextrace.getlockcallers into package path and func name values
+func parseFunc(fun string) (p string, f string) {
+	pathend := strings.LastIndex(fun, "/")
+	if pathend == -1 {
+		pathend = 0
 	}
-	c.prev.Rprint()
+	dot := strings.Index(fun[pathend:], ".") + pathend
+	if dot != -1 {
+		p = fun[:dot]
+		f = fun[dot+1:]
+	}
+	return p, f
 }
