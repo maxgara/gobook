@@ -70,14 +70,14 @@ func connect() error {
 		var i int
 		for {
 			//read stdin to bytes until newline or EOF or length limit
-			b := bytes[i:i+1]
+			b := bytes[i : i+1]
 			n, err := os.Stdin.Read(b)
-			if err != io.EOF && b != '\n'{
-				if err != nil{
-					panic()
+			if err != io.EOF && b[0] != '\n' {
+				if err != nil {
+					panic(fmt.Sprintf("error reading from stdin:%v\n", err))
 				}
-				if i+1 < BSIZE{
-					i++ 
+				if i+1 < BSIZE {
+					i++
 					continue
 				}
 				fmt.Printf("\nauto-sending message: buffer full\n")

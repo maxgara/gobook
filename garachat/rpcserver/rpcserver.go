@@ -9,7 +9,8 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
-	"sync"
+
+	sync "maxgara-code.com/workspace/mutextrace"
 )
 
 // allow chat client RPC to create users, send chat messsages, and read the chat log
@@ -36,6 +37,7 @@ func (m Message) String() string {
 
 // authenticate user
 func (s *ChatServer) auth(args Args) bool {
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key, ok := s.creds[args.Usr]

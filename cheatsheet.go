@@ -15,7 +15,9 @@ func main() {
 
 }
 func git_notes() {
-	//
+	//git push -u origin main
+	//git status
+	//git commit -m "message"
 }
 func notes() {
 	//TIME
