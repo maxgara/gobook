@@ -25,7 +25,31 @@ type caller struct {
 	flags int       //flags representing the kind of caller (direct, indirect, active, inactive, etc.)
 }
 
-// Walk Caller linked list backwards
+func (m *Mutex) Lock() {
+	fmt.Println("hook Lock()")
+	frames := getcFrames()
+	c := ftoc(frames)
+	fmt.Printf("direct caller:%v\n", *c)
+	if m.callers == nil {
+		m.callers = []caller{}
+	}
+	m.callers = append(m.callers, *c)
+	ac := common()
+	// for len(c.prev) != 0 {
+	// 	c = c.prev[0]
+	// 	fmt.Print(sprintFrame(&c.Frame, 0))
+	// }
+
+	m.sMutex.Lock()
+	// printFrames(f, 1)
+}
+
+func (m *Mutex) Unlock() {
+	fmt.Println("Hook Unlock()")
+	m.sMutex.Unlock()
+}
+
+// Walk Caller linked list backwards ***may not be needed
 func forEachParent(c *caller, f func(*caller) bool) error {
 	return nil
 }
@@ -40,6 +64,7 @@ func ftoc(frames *runtime.Frames) *caller {
 		c.Line = f.Line
 		c.File = f.File
 		f, more = frames.Next()
+		// fmt.Println(sprintFrame())
 		//stop if this was the oldest frame in the stack trace
 		if !more {
 			break
@@ -53,34 +78,45 @@ func ftoc(frames *runtime.Frames) *caller {
 	return first
 }
 
-// walk caller tree forwards
+// walk caller tree forwards *** may not be needed
 func forEachChild(c *caller, f func(*caller) bool) error {
 	return nil
 }
 
-// get common ancestor
-func common(c1 *caller, c2 *caller) {
-
-}
-func (m *Mutex) Lock() {
-	fmt.Println("hook Lock()")
-	frames := getcFrames()
-	c := ftoc(frames)
-	fmt.Printf("caller:%v\n", *c)
-	m.callers = append(m.callers, *c)
-	m.sMutex.Lock()
-	// printFrames(f, 1)
-}
-
-func (m *Mutex) Unlock() {
-	fmt.Println("Hook Unlock()")
-	m.sMutex.Unlock()
+// get common ancestor function. ancestor1 is in c1's trace while ancestor 2 is in c2's trace. n is depth
+func common(c1 *caller, c2 *caller, n int) (a1 *caller, a2 *caller, nr int) {
+	type apair struct {
+		a1 *caller
+		a2 *caller
+		n  int
+	}
+	var pairs = []apair{}
+	if a1.prev != nil {
+		for _, v := range a1.prev {
+			a1Anc, a2Anc, n1 := common(v, a2, n+1)
+			pairs = append(pairs, apair{a1Anc, a2Anc, n1})
+		}
+	}
+	if a2.prev != nil {
+		for _, v := range a2.prev {
+			a1Anc, a2Anc, n2 := common(a1, v, n+1)
+			pairs = append(pairs, apair{a1Anc, a2Anc, n2})
+		}
+	}
+	var minp *apair
+	var minn = 10000
+	for _, v := range pairs {
+		if v.n < minn {
+			minp = v
+		}
+	}
+	return minp.a1, minp.a2, minn
 }
 
 // get frames for current call stack
 func getcFrames() (f *runtime.Frames) {
 	var pcs = make([]uintptr, 20) //program counters for calling funcs
-	n := runtime.Callers(1, pcs)
+	n := runtime.Callers(3, pcs)
 	pcs = pcs[:n] //remove extra buffer space
 	return runtime.CallersFrames(pcs)
 }
