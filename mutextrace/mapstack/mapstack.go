@@ -1,6 +1,7 @@
 package mapstack
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 )
@@ -57,11 +58,14 @@ func addstack(vlookup map[string]*Vertex) {
 		// link node in previous iteration, if applicable
 		if prev != nil {
 			v.calls[prev] = true
+			prev.callers[v] = true
 		}
 		prev = v
-		//if v represents a vertex (p) already in graph,  combine them
+		//if v represents a vertex (p) already in graph,  combine them. Else, add p
 		if p, ok := vlookup[v.pack+"/"+v.name]; ok {
 			merge(p, v)
+		} else {
+			vlookup[v.pack+"/"+v.name] = v
 		}
 		if !more {
 			break
@@ -82,4 +86,9 @@ func merge(v *Vertex, p *Vertex) {
 func getVertex(f *runtime.Frame) *Vertex {
 	p, fname := parseFunc(f.Function)
 	return &Vertex{fname, p, f.File, make(map[*Vertex]bool), make(map[*Vertex]bool), 0}
+}
+func printmap(l map[string]*Vertex) {
+	for s, p := range l {
+		fmt.Printf("%v:\ncallers:%v\ncalls:%v\n", s, p.callers, p.calls)
+	}
 }
