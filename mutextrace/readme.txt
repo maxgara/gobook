@@ -13,6 +13,11 @@ downsides to this approach:
 -currently requires package user to modify the code they want to debug/analyze
 -can’t do anything useful until runtime
 
+Goal of this step: simple checks:
+    1. write to stdin how many calls are waiting, who last set lock
+    2. write a warning if frame sets a lock then later frame in the same stack trace tries to set the same lock
+    3. create a tree of execution flow
+
 
 future plans: 
 -add main package which substitutes sync libraries automatically (easy)

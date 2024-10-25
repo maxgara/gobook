@@ -46,15 +46,15 @@ type M struct {
 	b bool
 }
 
-func test2() {
-	var sync Sync
-	sync.Mutex = M
-	var m sync.Mutex
-	s.Lock()
-	{
-	}
-	return sync.Mutex(m.Mutex)
-}
+// func test2() {
+// 	var sync Sync
+// 	sync.Mutex = M
+// 	var m sync.Mutex
+// 	s.Lock()
+// 	{
+// 	}
+// 	return sync.Mutex(m.Mutex)
+// }
 
 //*possibilities:
 //- create alternative "sync.Mutex" package. **Current approach**

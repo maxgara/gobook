@@ -6,42 +6,57 @@ import (
 	"runtime"
 	"strings"
 	stdsync "sync"
+
+	"maxgara-code.com/workspace/mutextrace/mapstack"
 )
 
 const PRINTFRAMESFULL = 0
 const PRINTSHORTFRAMES = 1
 
-// keep track of what Mutexes are locked
+// keep track of what Mutexes are locked, and who is locking/unlocking them
 type Mutex struct {
 	sMutex  stdsync.Mutex
-	callers []caller // where methods on the mutex have been called from
+	vlookup map[string]caller //collection of all caller frames and their addresses
 }
 
+// flags
+const DEFAULT = 0b0
+const WAITING = 0b1
+const LOCKSET = 0b10
+const LOCKUNSET = 0b100
+
 // represent a frame as a node in call graph
+//
+//	type caller struct {
+//		runtime.Frame
+//		next  []*caller //child nodes
+//		prev  []*caller //parent nodes
+//		flags int       //flags representing the kind of caller (direct, indirect, active, inactive, etc.)
+//	}
 type caller struct {
-	runtime.Frame
-	next  []*caller //child nodes
-	prev  []*caller //parent nodes
-	flags int       //flags representing the kind of caller (direct, indirect, active, inactive, etc.)
+	mapstack.Vertex
+	flags int //flags representing the kind of caller (direct, indirect, active, inactive, etc.)
 }
 
 func (m *Mutex) Lock() {
 	fmt.Println("hook Lock()")
+	c := m.addCaller()
+	c.flags |= WAITING
+	m.sMutex.Lock()
+	c.flags &= (^WAITING)
+	c.flags |= LOCKSET
+
+}
+
+func (m *Mutex) addCaller() *caller {
 	frames := getcFrames()
 	c := ftoc(frames)
-	fmt.Printf("direct caller:%v\n", *c)
 	if m.callers == nil {
 		m.callers = []caller{}
 	}
+	fmt.Print(sprintFrame(&c.Frame, 0))
 	m.callers = append(m.callers, *c)
-	ac := common()
-	// for len(c.prev) != 0 {
-	// 	c = c.prev[0]
-	// 	fmt.Print(sprintFrame(&c.Frame, 0))
-	// }
-
-	m.sMutex.Lock()
-	// printFrames(f, 1)
+	return c
 }
 
 func (m *Mutex) Unlock() {
@@ -83,7 +98,7 @@ func forEachChild(c *caller, f func(*caller) bool) error {
 	return nil
 }
 
-// get common ancestor function. ancestor1 is in c1's trace while ancestor 2 is in c2's trace. n is depth
+// get common ancestor function. finds all equivalent pairs of functions in the stack trace of 2 functions
 func common(c1 *caller, c2 *caller, n int) (a1 *caller, a2 *caller, nr int) {
 	type apair struct {
 		a1 *caller
@@ -107,7 +122,7 @@ func common(c1 *caller, c2 *caller, n int) (a1 *caller, a2 *caller, nr int) {
 	var minn = 10000
 	for _, v := range pairs {
 		if v.n < minn {
-			minp = v
+			minp = &v
 		}
 	}
 	return minp.a1, minp.a2, minn
@@ -116,7 +131,7 @@ func common(c1 *caller, c2 *caller, n int) (a1 *caller, a2 *caller, nr int) {
 // get frames for current call stack
 func getcFrames() (f *runtime.Frames) {
 	var pcs = make([]uintptr, 20) //program counters for calling funcs
-	n := runtime.Callers(3, pcs)
+	n := runtime.Callers(4, pcs)
 	pcs = pcs[:n] //remove extra buffer space
 	return runtime.CallersFrames(pcs)
 }
@@ -139,7 +154,7 @@ func sprintFrame(f *runtime.Frame, mode int) string {
 	}
 	switch mode {
 	case PRINTFRAMESFULL:
-		return fmt.Sprintf("%s\nFILE:%v\nLINE:%v\nFUNC:%v\nPACKAGE:%v\nSHORT:%v\n", sep, file, line, function, pack, short)
+		return fmt.Sprintf("%s\nFILE:%v\nLINE:%v\nFUNC:%v\nPC:%v\nPACKAGE:%v\nSHORT:%v\n", sep, file, line, function, f.PC, pack, short)
 	case PRINTSHORTFRAMES:
 		return fmt.Sprintf("%s\nPACKAGE:%v\nSHORT:%v\n", sep, pack, short)
 	}

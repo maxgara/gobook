@@ -102,3 +102,8 @@ func makeCanvas(w int, h int) *Canvas {
 	}
 	return &can
 }
+
+type coord struct {
+	x int
+	y int
+}
