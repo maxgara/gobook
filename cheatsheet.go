@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const MODULEPATH = "maxgara-code.com"
+
 func main() {
 
 }

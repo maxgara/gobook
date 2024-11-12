@@ -19,7 +19,7 @@ type Canvas struct {
 
 // place line of length l at line y, pos x, and oriented in direction d. d has allowed values ('u','d','l','r').
 // if pointy is set to true, the line will terminate with an "arrowhead" ie. ---->
-func putLine(x int, y int, d byte, l int, can *Canvas, pointy bool) {
+func putLine(x int, y int, d byte, l int, can *Canvas, pointy bool) (int, int) {
 	var c byte         //character to write
 	var p byte         //pointy end of line (when point is set true)
 	var xoff, yoff int //direction to move writier per char
@@ -55,11 +55,12 @@ func putLine(x int, y int, d byte, l int, can *Canvas, pointy bool) {
 		can.lines[y][x] = c
 	}
 	if !pointy {
-		return
+		return x, y
 	}
 	x += xoff
 	y += yoff
 	can.lines[y][x] = p
+	return x, y
 }
 
 // write byte slice to canvas, starting at line y, positiion x

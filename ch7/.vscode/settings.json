@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "stdio.h": "c",
+        "gsl_fft_real.h": "c",
+        "gsl_sf_bessel.h": "c",
+        "gsl_fft_halfcomplex.h": "c",
+        "complex": "c",
+        "array": "c",
+        "span": "c",
+        "string": "c",
+        "string_view": "c",
+        "vector": "c"
+    }
+}
