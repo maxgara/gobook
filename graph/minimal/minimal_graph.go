@@ -3,8 +3,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"strconv"
@@ -18,13 +18,12 @@ import (
 // read lines of data, when hitting a non-data line check for flag -n indicating a new chart, otherwise add line to current chart
 func main() {
 	//read all data in
-	var data string
-	data = io.ReadAll(os.Stdin)
-	svgs := parse(data)
+	var data []byte
+	data, _ = io.ReadAll(os.Stdin)
+	svgs := parse(string(data))
 	if len(svgs) == 0 {
 		return
 	}
-	// fmt.Println(svgs)
 	print(svgs)
 }
 
@@ -43,7 +42,8 @@ func newsvg() svg {
 
 // polyline
 type curve struct {
-	P []point //points on curve
+	P    []point //points on curve
+	Fill color   //color of line
 }
 
 // datapoint
@@ -57,19 +57,30 @@ func parse(data string) []svg {
 	var boxes []svg
 	var box = newsvg()
 	var c curve
+	cs := colorset{}
+	c.Fill = cs.newcolor()
 	for _, l := range strings.Split(data, "\n") {
 		t := linetype(l)
 		switch t {
 		// start a new curve plot
 		case EMPTY:
+			if c.P == nil {
+				continue
+			}
 			box.Curves = append(box.Curves, c)
 			c = curve{}
+			c.Fill = cs.newcolor()
 		// start a new curve plot and a new chart
 		case NEWCHARTFLAG:
+			if c.P == nil {
+				continue
+			}
 			box.Curves = append(box.Curves, c)
 			boxes = append(boxes, box)
 			box = svg{}
 			c = curve{}
+			cs = colorset{}
+			c.Fill = cs.newcolor()
 		//add label to plot if it appears before data
 		case TEXT:
 			if box.Label != "" || c.P != nil {
@@ -92,20 +103,26 @@ func parse(data string) []svg {
 			box.Ymax = max(p.Y, box.Ymax)
 		}
 	}
-	box.Curves = append(box.Curves, c)
-	boxes = append(boxes, box)
+	if c.P != nil {
+		box.Curves = append(box.Curves, c)
+	}
+	if box.Curves != nil {
+		boxes = append(boxes, box)
+	}
 	return boxes
 }
 func print(boxes []svg) {
 	templ, err := template.New("svg").Parse(`<svg viewBox="{{.Xmin}} {{.Xmax}} {{.Xrange}} {{.Yrange}}" style="width: 100%; height: 100%; display: flex" xmlns="http://www.w3.org/2000/svg">
 	{{range .Curves}}
-	<polyline stroke="%v" fill="none" stroke-width="0.7" points="{{range .P}} {{.X}},{{.Y}}{{end}}">
+	<polyline stroke="{{.Fill}}" fill="none" stroke-width="0.7" points="{{range .P}} {{.X}},{{.Y}}{{end}}">
 	{{end}}</svg>`)
 	if err != nil {
 		fmt.Printf("err:%v\n", err)
 	}
 	for _, b := range boxes {
 		//write svg to stdout
+		b.Xrange = b.Xmax - b.Xmin
+		b.Yrange = b.Ymax - b.Ymin
 		err = templ.Execute(os.Stdout, b)
 		// fmt.Printf("curves:%v, %v\n", b.Curves, b.Curves)
 		if err != nil {
@@ -218,4 +235,3 @@ func parsep(s string) (point, int) {
 	}
 	return point{x, y}, 2
 }
-
