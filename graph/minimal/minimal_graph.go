@@ -52,7 +52,7 @@ func printSVGs(instr string) string {
 		//begin new SVG and new line plot
 		if t == NEWCHARTFLAG {
 			cols = colors{} //reset colors
-			outtemp += lineend + printBoundsSVG(bounds) + svgend
+			outtemp += lineend + printBoundsHTML(bounds) + svgend
 			outtemp = printsvgstart(bounds) + outtemp // prepend svg start tag
 			out += outtemp
 			outtemp = printlinestart(cols.newcolor())
@@ -64,7 +64,7 @@ func printSVGs(instr string) string {
 		outtemp += printpoint(p)
 		idx++
 	}
-	outtemp += lineend + printBoundsSVG(bounds) + svgend
+	outtemp += lineend + svgend + printBoundsHTML(bounds)
 	outtemp = printsvgstart(bounds) + outtemp // prepend svg start tag
 	out += outtemp
 	fmt.Print(out)
@@ -77,31 +77,27 @@ func printpoint(p []float64) string {
 func printsvgstart(b []float64) string {
 	width := b[XMAX] - b[XMIN]
 	height := b[YMAX] - b[YMIN]
-	return fmt.Sprintf(`<div style="width: %s; height: %s; display: flex"><svg viewBox="%d %d %d %d" xmlns="http://www.w3.org/2000/svg"><style>".small {
-      font: italic 13px sans-serif;
-    }"</style>`, `100%`, `100%`, int(b[XMIN]), int(b[YMIN]), int(width), int(height))
+	return fmt.Sprintf(`<div style="width: %s; height: %s; display: flex"><svg viewBox="%d %d %d %d" style="width: %s; height: %s; display: flex" xmlns="http://www.w3.org/2000/svg">`, `100%`, `100%`, int(b[XMIN]), int(b[YMIN]), int(width), int(height), "100%", "100%")
 }
 
 func printlinestart(c color) string {
 	return fmt.Sprintf(`<polyline stroke="%v" fill="none" stroke-width="0.7" points="`, c)
 }
+func printBoundsHTML(b []float64) string {
+	return fmt.Sprintf("<div> XMIN=%v, XMAX=%v, YMIN=%v, YMAX=%v</div>", b[XMIN], b[XMAX], b[YMIN], b[YMAX])
+}
 func printBoundsSVG(bounds []float64) string {
+	const off = 50
 	b := []int{int(bounds[0]), int(bounds[1]), int(bounds[2]), int(bounds[3])}
 	const style = `<style>".small {
       font: italic 13px sans-serif;
     }"</style>`
-	return fmt.Sprintf(`%s<text x="2+%d" y="%d-2" class="small">%d,%d</text>
-	 <text x="%d" y="%d" class="small">%d,%d</text>
-	  <text x="%d" y="%d" class="small">%d,%d</text>
+	return fmt.Sprintf(`%s<text x="%d" y="%d" class="small">%d,%d</text>
+	 <text x="%d" y="%d" class="small">%d</text>
+	  <text x="%d" y="%d" class="small">%d</text>
 	  `, "",
-		b[XMIN], b[YMIN], b[XMIN], b[YMIN], b[XMAX], b[YMIN], b[XMAX], b[YMIN], b[XMIN], b[YMAX], b[XMIN], b[YMAX])
+		b[XMIN]+off, b[YMIN]+off, b[XMIN], b[YMIN], b[XMAX]-off, b[YMIN]+off, b[XMAX], b[XMIN]+off, b[YMAX]-off, b[YMAX])
 }
-
-const (
-	DATA int = iota
-	EMPTY
-	NEWCHARTFLAG
-)
 
 type colors struct {
 	allcolors []color
@@ -156,12 +152,25 @@ func (c *colors) newcolor() color {
 	fmt.Println("hit end of newcolor() - that's not supposed to happen")
 	return red
 }
+
+// types of per-line input
+const (
+	DATA int = iota
+	EMPTY
+	NEWCHARTFLAG
+	LABEL
+)
+
+// decide what type of input a given line read is. default is DATA for coordinates/datapoints
 func linetype(s string) int {
 	if s == "" {
 		return EMPTY
 	}
 	if s == "-n" {
 		return NEWCHARTFLAG
+	}
+	if strings.ContainsAny(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+		return LABEL
 	}
 	return DATA
 }
