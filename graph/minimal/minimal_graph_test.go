@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
 func TestColors(t *testing.T) {
-	var cols = colors{}
+	var cols = colorset{}
 	// var newcols []color
 	// newcols = append(newcols, cols.newcolor())
 	fmt.Println(cols.newcolor())
@@ -42,6 +43,20 @@ func TestMultiColorSVG(t *testing.T) {
 }
 func TestPrintBoundsSvg(t *testing.T) {
 	fmt.Printf("bounds:%s\n", printBoundsSVG([]float64{0, 0, 40, 50}))
+}
+func TestParsep(t *testing.T) {
+	for _, s := range strings.Split(data[0], "\n") {
+		p, n := parsep(s)
+		fmt.Printf("p:%v n:%v\n", p, n)
+	}
+}
+func TestParse(t *testing.T) {
+	boxes := parse(data[0])
+	fmt.Printf("boxes:%v\n", boxes)
+}
+func TestPrint(t *testing.T) {
+	boxes := parse(data[0])
+	print(boxes)
 }
 
 var data = []string{`1 5
