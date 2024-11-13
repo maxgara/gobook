@@ -37,16 +37,19 @@ type svg struct {
 }
 
 func newsvg() svg {
-	return svg{Xmin: math.MaxFloat64, Ymin: math.MaxFloat64}
+	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64}
 }
-
+func (b *svg) Add (p point){
+	c := &b.Curves[len(b.Curves)-1]
+	c.Add(p)
+}
 // polyline
 type curve struct {
 	P    []point //points on curve
 	Fill color   //color of line
 }
-func (c *curve) Write (x,y float64){
-	c.P=append(c.P, point{x:x, y:y})
+func (c *curve) Add p point){
+	c.P=append(c.P, p)
 }
 
 // datapoint
