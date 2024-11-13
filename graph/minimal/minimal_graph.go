@@ -29,19 +29,24 @@ func main() {
 
 // svg data
 type svg struct {
-	Curves                 []curve //polyline curve data
+	Curves                 []curve //polyline curve data                 
 	Xmin, Xmax, Ymin, Ymax float64 //bounds for SVG viewbox
 	Label                  string
 	Xrange                 float64
 	Yrange                 float64
+	colors                 colorset
 }
 
 func newsvg() svg {
-	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64}
+	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors:colorset{}}
 }
 func (b *svg) Add (p point){
 	c := &b.Curves[len(b.Curves)-1]
 	c.Add(p)
+}
+func (b *svg) Endc (){
+	c := curve{ Fill:b.colors.new()}
+	b.Curves = append(b.Curves, c)
 }
 // polyline
 type curve struct {
