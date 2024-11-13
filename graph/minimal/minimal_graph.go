@@ -45,6 +45,9 @@ type curve struct {
 	P    []point //points on curve
 	Fill color   //color of line
 }
+func (c *curve) Write (x,y float64){
+	c.P=append(c.P, point{x:x, y:y})
+}
 
 // datapoint
 type point struct {
