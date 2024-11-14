@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -37,98 +38,125 @@ type svg struct {
 	colors                 colorset
 }
 
-func newsvg() svg {
-	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors: colorset{}}
-}
+// add point to current curve in svg
 func (b *svg) Add(p point) {
-	c := &b.Curves[len(b.Curves)-1]
+	if len(b.Curves) == 0 {
+		b.Newc()
+	}
+	cc := len(b.Curves) // curve count
+	c := &(b.Curves[cc-1])
 	c.Add(p)
 }
-func (b *svg) Endc() {
-	c := curve{Fill: b.colors.new()}
+
+// initialize curve in box b
+func (b *svg) Newc() {
+	cc := len(b.Curves)
+	label := fmt.Sprintf("Plot %d", cc+1)
+	c := curve{Col: b.colors.new(), Label: label}
 	b.Curves = append(b.Curves, c)
 }
 
-// polyline
-type curve struct {
-	P    []point //points on curve
-	Fill color   //color of line
+// initialize new svg
+func newsvg() svg {
+	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors: colorset{}}
 }
 
+// polyline curve data
+type curve struct {
+	P     []point //points on curve
+	Col   color   //color of line
+	Label string  //label for curve
+}
+
+// add point to polyline curve
 func (c *curve) Add(p point) {
 	c.P = append(c.P, p)
 }
 
-// datapoint
+// polyline curve datapoint
 type point struct {
 	X float64
 	Y float64
 }
 
-// read string input input datapoints for 1 or more curves and parse into 1 or more SVG elements
+// read string input data points for 1 or more SVG elements, containing one or more curves each
 func parse(data string) []svg {
 	var boxes []svg
 	var box = newsvg()
-	var c curve
-	cs := colorset{}
-	c.Fill = cs.new()
+	var idx int // index of point in curve
 	for _, l := range strings.Split(data, "\n") {
 		t := linetype(l)
 		switch t {
-		// start a new curve plot
+		//new curve plot in box
 		case EMPTY:
-			if c.P == nil {
-				continue
-			}
-			box.Curves = append(box.Curves, c)
-			c = curve{}
-			c.Fill = cs.new()
-		// start a new curve plot and a new chart
+			box.Newc()
+		// new box
 		case NEWCHARTFLAG:
-			if c.P == nil {
-				continue
-			}
-			box.Curves = append(box.Curves, c)
 			boxes = append(boxes, box)
 			box = svg{}
-			c = curve{}
-			cs = colorset{}
-			c.Fill = cs.new()
-		//add label to plot if it appears before data
+		//add labels
 		case TEXT:
-			if box.Label != "" || c.P != nil {
+			//box label
+			cc := len(box.Curves)
+			if cc == 0 {
+				box.Label = l
 				continue
 			}
-			box.Label = l
+			//curve label
+			box.Curves[cc-1].Label = l
 		case DATA:
 			p, n := parsep(l)
 			if n == -1 {
-				fmt.Printf("error on line %v\n", l)
+				fmt.Printf("error on line \"%s\"\n", l)
+				continue
 			}
 			//add idx as x coord if missing
 			if n == 1 {
-				p.X = float64(len(c.P))
+				p.X = float64(idx)
 			}
-			c.P = append(c.P, p)
+			box.Add(p)
 			box.Xmin = min(p.X, box.Xmin)
 			box.Xmax = max(p.X, box.Xmax)
 			box.Ymin = min(p.Y, box.Ymin)
 			box.Ymax = max(p.Y, box.Ymax)
 		}
 	}
-	if c.P != nil {
-		box.Curves = append(box.Curves, c)
-	}
-	if box.Curves != nil {
-		boxes = append(boxes, box)
-	}
+	boxes = append(boxes, box)
 	return boxes
 }
+
+var s svg
+
+const tstr = `
+<div style="display: flex; flex-direction:column; align-items: center">
+	<b>{{.Label}}</b>
+	<div style="width: 500; height: 500; padding: 2%; ">
+		<svg viewBox="{{.Xmin}} {{.Ymin}} {{.Xrange}} {{.Yrange}}"
+			style="width:100%; height: 100%; background: grey; border: coral solid" xmlns="http://www.w3.org/2000/svg">
+			{{range .Curves}}
+			{{if .P}}<polyline stroke="{{.Col}}" fill="none" stroke-width="4.0"
+				points="{{range .P}} {{.X}},{{.Y}}{{end}}">
+				{{end}}
+			</polyline>
+			{{end}}
+		</svg>
+	</div>
+	<div> XMIN={{.Xmin}} YMIN={{.Ymin}} XMAX={{.Xmax}} YMAX={{.Ymax}} </div>
+	<div style="width: 500; text-align:left; ">
+		<br>
+		<b>Key</b>
+		{{range .Curves}}
+
+		{{if .P}} <div style="color:{{.Col}}">{{.Label}}</div> {{end}}
+		{{end}}
+	</div>
+</div>
+<br><br>
+`
+
 func print(boxes []svg) {
-	templ, err := template.New("svg").Parse(`<svg viewBox="{{.Xmin}} {{.Xmax}} {{.Xrange}} {{.Yrange}}" style="width: 100%; height: 100%; display: flex" xmlns="http://www.w3.org/2000/svg">
-	{{range .Curves}}
-	<polyline stroke="{{.Fill}}" fill="none" stroke-width="0.7" points="{{range .P}} {{.X}},{{.Y}}{{end}}">
-	{{end}}</svg>`)
+
+	templ, err := template.New("svg").Parse(tstr)
 	if err != nil {
 		fmt.Printf("err:%v\n", err)
 	}
@@ -154,13 +182,14 @@ const (
 
 // decide what type of input a given line read is. default is DATA for coordinates/datapoints
 func linetype(s string) int {
+	s = strings.TrimSpace(s)
 	if s == "" {
 		return EMPTY
 	}
-	if strings.TrimSpace(s) == "-n" {
+	if s == "-n" {
 		return NEWCHARTFLAG
 	}
-	if strings.ContainsAny(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+	if m, _ := regexp.MatchString(`[^\d\.\-\s]`, s); m {
 		return TEXT
 	}
 	return DATA
@@ -172,7 +201,7 @@ func parsep(s string) (point, int) {
 	// wl := len(words)
 	if len(words) != 1 && len(words) != 2 {
 		fmt.Fprintf(os.Stderr, `ERROR: bad data line :"%v"\n`, s)
-		os.Exit(1)
+		// os.Exit(1)
 		return point{}, -1
 	}
 	//one coord case
