@@ -6,6 +6,8 @@ import (
 )
 
 func main() {
-	fmt.Printf("%f, %f\n", math.MaxFloat64, -math.MaxFloat64)
-	fmt.Printf("%v, %v\n ", 5.0 < math.MaxFloat64, 5.0 > -math.MaxFloat64)
+	x := math.MaxFloat64
+	fmt.Printf("%v\n%v\n", x, x*2)
+	n := math.IsNaN(math.NaN())
+	fmt.Printf("%v\n", n)
 }

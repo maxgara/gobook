@@ -13,8 +13,21 @@ import (
 	"text/template"
 )
 
-// const header = `<svg xmlns="http://www.w3.org/2000/svg" overflow="visible">`
-//rewrite to store data before formatting (simpler), and not use so much string concatination. Use templates instead
+const styles = `
+
+<head>
+	<style>
+		div {
+			font-family: monospace;
+			font-size: 16;
+			font-weight: 700;
+		}
+
+		body {
+			background-color: #FDFDF0;
+		}
+	</style>
+</head>`
 
 // read lines of data, when hitting a non-data line check for flag -n indicating a new chart, otherwise add line to current chart
 func main() {
@@ -25,6 +38,7 @@ func main() {
 	if len(svgs) == 0 {
 		return
 	}
+	fmt.Printf("%s", styles)
 	print(svgs)
 }
 
@@ -105,15 +119,16 @@ func parse(data string) []svg {
 			//curve label
 			box.Curves[cc-1].Label = l
 		case DATA:
-			p, n := parsep(l)
-			if n == -1 {
+			p, err := parsep(l)
+			if err != nil {
 				fmt.Printf("error on line \"%s\"\n", l)
 				continue
 			}
 			//add idx as x coord if missing
-			if n == 1 {
+			if math.IsNaN(p.X) {
 				p.X = float64(idx)
 			}
+
 			box.Add(p)
 			box.Xmin = min(p.X, box.Xmin)
 			box.Xmax = max(p.X, box.Xmax)
@@ -124,12 +139,6 @@ func parse(data string) []svg {
 	boxes = append(boxes, box)
 	return boxes
 }
-
-var s svg
-
-const tstr = `
-
-`
 
 func print(boxes []svg) {
 	templ, err := template.ParseFiles("svg.tmpl")
@@ -173,30 +182,25 @@ func linetype(s string) int {
 }
 
 // parse coordinates for point p, returns p and number of coords parsed, or -1 for error
-func parsep(s string) (point, int) {
+func parsep(s string) (point, error) {
 	words := strings.Fields(s)
 	// wl := len(words)
 	if len(words) != 1 && len(words) != 2 {
-		fmt.Fprintf(os.Stderr, `ERROR: bad data line :"%v"\n`, s)
+		err := fmt.Errorf("parsep: bad data line \"%v\"", s)
 		// os.Exit(1)
-		return point{}, -1
+		return point{}, err
+
 	}
 	//one coord case
 	if len(words) == 1 {
 		y, err := strconv.ParseFloat(words[0], 64)
-		if err != nil {
-			fmt.Fprintf(os.Stdout, "ERROR:%v\n", err)
-			return point{}, -1
-		}
-		return point{0, y}, 1
+		return point{math.NaN(), y}, err
 	}
 	// two coordinate case
 	x, xerr := strconv.ParseFloat(words[0], 64)
 	y, yerr := strconv.ParseFloat(words[1], 64)
-	if xerr != nil || yerr != nil {
-		err := xerr.Error() + yerr.Error()
-		fmt.Printf("ERROR:%v\n", err)
-		return point{0, y}, -1
+	if xerr != nil {
+		return point{x, y}, xerr
 	}
-	return point{x, y}, 2
+	return point{x, y}, yerr
 }
