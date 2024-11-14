@@ -58,7 +58,7 @@ func (b *svg) Newc() {
 
 // initialize new svg
 func newsvg() svg {
-	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors: colorset{}}
+	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, Xmax: -math.MaxFloat64, Ymax: -math.MaxFloat64, colors: colorset{}}
 }
 
 // polyline curve data
@@ -93,7 +93,7 @@ func parse(data string) []svg {
 		// new box
 		case NEWCHARTFLAG:
 			boxes = append(boxes, box)
-			box = svg{}
+			box = newsvg()
 		//add labels
 		case TEXT:
 			//box label
@@ -128,35 +128,12 @@ func parse(data string) []svg {
 var s svg
 
 const tstr = `
-<div style="display: flex; flex-direction:column; align-items: center">
-	<b>{{.Label}}</b>
-	<div style="width: 500; height: 500; padding: 2%; ">
-		<svg viewBox="{{.Xmin}} {{.Ymin}} {{.Xrange}} {{.Yrange}}"
-			style="width:100%; height: 100%; background: grey; border: coral solid" xmlns="http://www.w3.org/2000/svg">
-			{{range .Curves}}
-			{{if .P}}<polyline stroke="{{.Col}}" fill="none" stroke-width="4.0"
-				points="{{range .P}} {{.X}},{{.Y}}{{end}}">
-				{{end}}
-			</polyline>
-			{{end}}
-		</svg>
-	</div>
-	<div> XMIN={{.Xmin}} YMIN={{.Ymin}} XMAX={{.Xmax}} YMAX={{.Ymax}} </div>
-	<div style="width: 500; text-align:left; ">
-		<br>
-		<b>Key</b>
-		{{range .Curves}}
 
-		{{if .P}} <div style="color:{{.Col}}">{{.Label}}</div> {{end}}
-		{{end}}
-	</div>
-</div>
-<br><br>
 `
 
 func print(boxes []svg) {
-
-	templ, err := template.New("svg").Parse(tstr)
+	templ, err := template.ParseFiles("svg.tmpl")
+	// templ, err := template.New("svg").Parse(tstr)
 	if err != nil {
 		fmt.Printf("err:%v\n", err)
 	}
