@@ -29,7 +29,7 @@ func main() {
 
 // svg data
 type svg struct {
-	Curves                 []curve //polyline curve data                 
+	Curves                 []curve //polyline curve data
 	Xmin, Xmax, Ymin, Ymax float64 //bounds for SVG viewbox
 	Label                  string
 	Xrange                 float64
@@ -38,23 +38,25 @@ type svg struct {
 }
 
 func newsvg() svg {
-	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors:colorset{}}
+	return svg{Curves: make([]curve, 0), Xmin: math.MaxFloat64, Ymin: math.MaxFloat64, colors: colorset{}}
 }
-func (b *svg) Add (p point){
+func (b *svg) Add(p point) {
 	c := &b.Curves[len(b.Curves)-1]
 	c.Add(p)
 }
-func (b *svg) Endc (){
-	c := curve{ Fill:b.colors.new()}
+func (b *svg) Endc() {
+	c := curve{Fill: b.colors.new()}
 	b.Curves = append(b.Curves, c)
 }
+
 // polyline
 type curve struct {
 	P    []point //points on curve
 	Fill color   //color of line
 }
-func (c *curve) Add p point){
-	c.P=append(c.P, p)
+
+func (c *curve) Add(p point) {
+	c.P = append(c.P, p)
 }
 
 // datapoint
@@ -69,7 +71,7 @@ func parse(data string) []svg {
 	var box = newsvg()
 	var c curve
 	cs := colorset{}
-	c.Fill = cs.newcolor()
+	c.Fill = cs.new()
 	for _, l := range strings.Split(data, "\n") {
 		t := linetype(l)
 		switch t {
@@ -80,7 +82,7 @@ func parse(data string) []svg {
 			}
 			box.Curves = append(box.Curves, c)
 			c = curve{}
-			c.Fill = cs.newcolor()
+			c.Fill = cs.new()
 		// start a new curve plot and a new chart
 		case NEWCHARTFLAG:
 			if c.P == nil {
@@ -91,7 +93,7 @@ func parse(data string) []svg {
 			box = svg{}
 			c = curve{}
 			cs = colorset{}
-			c.Fill = cs.newcolor()
+			c.Fill = cs.new()
 		//add label to plot if it appears before data
 		case TEXT:
 			if box.Label != "" || c.P != nil {
@@ -140,60 +142,6 @@ func print(boxes []svg) {
 			fmt.Printf("err:%v\n", err)
 		}
 	}
-}
-
-type colorset struct {
-	allcolors []color
-	used      map[color]bool
-}
-
-type color uint32
-
-func (c color) String() string {
-	return fmt.Sprintf("#%06x", uint32(c))
-}
-
-const red color = 0xff0000
-const green color = 0x00ff00
-const blue color = 0x0000ff
-
-func blend(c1, c2 color) color {
-	const rfilter = 0xff0000
-	const gfilter = 0x00ff00
-	const bfilter = 0x0000ff
-	r := (((c1 & rfilter) + (c2 & rfilter)) / 2) & rfilter
-	g := (((c1 & gfilter) + (c2 & gfilter)) / 2) & gfilter
-	b := (((c1 & bfilter) + (c2 & bfilter)) / 2) & bfilter
-	return r | g | b
-}
-func (c *colorset) newcolor() color {
-	//initialization case
-	l := len(c.allcolors)
-	if l == 0 {
-		c.allcolors = []color{red, green, blue}
-		c.used = make(map[color]bool)
-		return 0x000000 //start with black
-	}
-	//out of colors case, add new colors
-	if l == len(c.used) {
-		var cnew []color
-		// for each pair of colors a_n, a_n+1 insert new blended color in the middle
-		for i, _ := range c.allcolors {
-			nc := blend(c.allcolors[i], c.allcolors[(i+1)%l]) //new color
-			cnew = append(cnew, c.allcolors[i])               //original color
-			cnew = append(cnew, nc)
-		}
-		c.allcolors = cnew
-		return c.newcolor()
-	}
-	for _, col := range c.allcolors {
-		if !c.used[col] {
-			c.used[col] = true
-			return col
-		}
-	}
-	fmt.Println("hit end of newcolor() - that's not supposed to happen")
-	return red
 }
 
 // types of per-line input
