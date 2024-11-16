@@ -1,0 +1,7 @@
+
+
+TEXT ·add(SB),NOSPLIT,$0
+	MOVQ y+8(FP), BP
+	ADDQ BP, BX
+	MOVQ BX, ret+16(FP)
+	RET

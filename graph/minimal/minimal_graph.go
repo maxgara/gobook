@@ -17,17 +17,15 @@ const styles = `
 
 <head>
 	<style>
-		div {
+		body {
 			font-family: monospace;
 			font-size: 16;
 			font-weight: 700;
-		}
-
-		body {
-			background-color: #FDFDF0;
+			text-transform: lowercase;
 		}
 	</style>
-</head>`
+</head>
+`
 
 // read lines of data, when hitting a non-data line check for flag -n indicating a new chart, otherwise add line to current chart
 func main() {
@@ -53,17 +51,17 @@ type svg struct {
 }
 
 // add point to current curve in svg
-func (b *svg) Add(p point) {
+func (b *svg) Push(p point) {
 	if len(b.Curves) == 0 {
-		b.Newc()
+		b.NewCurve()
 	}
 	cc := len(b.Curves) // curve count
 	c := &(b.Curves[cc-1])
-	c.Add(p)
+	c.P = append(c.P, p)
 }
 
 // initialize curve in box b
-func (b *svg) Newc() {
+func (b *svg) NewCurve() {
 	cc := len(b.Curves)
 	label := fmt.Sprintf("Plot %d", cc+1)
 	c := curve{Col: b.colors.new(), Label: label}
@@ -82,11 +80,6 @@ type curve struct {
 	Label string  //label for curve
 }
 
-// add point to polyline curve
-func (c *curve) Add(p point) {
-	c.P = append(c.P, p)
-}
-
 // polyline curve datapoint
 type point struct {
 	X float64
@@ -103,7 +96,7 @@ func parse(data string) []svg {
 		switch t {
 		//new curve plot in box
 		case EMPTY:
-			box.Newc()
+			box.NewCurve()
 		// new box
 		case NEWCHARTFLAG:
 			boxes = append(boxes, box)
@@ -129,7 +122,7 @@ func parse(data string) []svg {
 				p.X = float64(idx)
 			}
 
-			box.Add(p)
+			box.Push(p)
 			box.Xmin = min(p.X, box.Xmin)
 			box.Xmax = max(p.X, box.Xmax)
 			box.Ymin = min(p.Y, box.Ymin)
