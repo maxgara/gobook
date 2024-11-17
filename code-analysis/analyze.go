@@ -1,57 +1,42 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
-
-//goal: read flow and create some sort of representation of the following:
-// -possible paths
-// -range of start and end states
-// -dependence of end states on initial states
-// -variable symmetry - transformations on var space which produce the same result f(x) = f(T(x)). ex T= x mod 3
-// T(x1) = T(x2) implies f(x1) = f(x2)
-// -code “symmetry?” how can code be systematically transformed (analagous to geometric rotations, reflections etc.) to yield the same result (representation)?
-// -boundary conditions for paths
-//
-//current plan is to primarily use the idea of symmetry "groups" for a function f,
-// a symmetry represents the range of a function, and the pattern in which
-
-// beginning steps:
-
-// write very basic go source parser:
-// - identify function blocks
-// - identify function calls
-// - identify var declarations + definitions (without short var defs)
-// - identify operators
-// - identify if
-
-// begin to associate operations with symmetries (no edge conditions,
-// eg. x*x/x=x)
-
-// create func call graph
-// -only function names for now
-
-// begin to compute symmetry flows/results, predict outcomes
-// - operators z
-//assumptions:
-// no overflow/underflow
-// no loops
-// only ints
 
 func main() {
 	var data []byte
 	data, _ = io.ReadAll(os.Stdin)
 	s := string(data)
-	findFunctions(s)
+	fidxarr := findFunctions(s)
+	farr := parseFunctions(s, fidxarr)
+
+	tree(farr)
 }
 
+// construct function call tree
+func tree(farr []fn) {
+	//convert to map for convenience
+	fs := make(map[string]fn)
+	for _, f := range farr {
+		fs[f.name] = f
+	}
+	for fname, f := range fs {
+		// TODO: make map
+		_ = fname
+		_ = f
+	}
+}
+
+// find all function blocks and return start,end idxs. s[start:end] is full function
 func findFunctions(s string) [][]int {
 	// re := regexp.MustCompile(`func.*\(.*\).*\{.*}`)
 	re := regexp.MustCompile(`func\s*[^\s\(]+.*?\(.*?\).*?{`)
 	matchsets := re.FindAllStringIndex(s, -1)
-	// fmt.Println(matchsets)
 	for i, match := range matchsets {
 		cbrack := matchb(s, match[1]-1)
 		if cbrack == -1 {
@@ -60,6 +45,60 @@ func findFunctions(s string) [][]int {
 		matchsets[i][1] = cbrack
 	}
 	return matchsets
+}
+
+type fn struct {
+	name     string   //name
+	args     []string //args (all ints)
+	body     string   //body text
+	vsetstrs []string //var modification or initialization strings
+	vdecstrs []string //var declaration strings
+}
+
+func (f fn) String() string {
+	return fmt.Sprintf("func %v (args:%v)\ndecs:%v\nsets:\n%v\n", f.name, f.args, f.body, f.vdecstrs, f.vsetstrs)
+}
+
+// extract funcs from file string, idxs returned by findFunctions
+func parseFunctions(s string, idxs [][]int) []fn {
+	var fns []fn
+	for _, fidx := range idxs {
+		fstr := s[fidx[0]:fidx[1]]
+		fsplit := strings.Split(fstr, "\n")
+		head := fsplit[0]
+		bodyarr := fsplit[1:]
+		//trim body
+		for i, v := range bodyarr {
+			bodyarr[i] = strings.TrimSpace(v)
+		}
+		body := strings.Join(bodyarr, "\n")
+		body = body[:len(body)-1] //remove trailing }
+		//extract
+		headp := regexp.MustCompile(`func\s+([^(]+?)\s*\((.*)\)`) //file name, argstring pattern
+		headms := headp.FindStringSubmatch(head)                  //matches
+		name := headms[1]
+		argstr := headms[2]
+		argp := regexp.MustCompile(`(\w+)\b`) //arg pattern
+		args := []string{}
+		//extract args from argstring
+		for _, v := range strings.Split(argstr, ",") {
+			argm := argp.FindStringSubmatch(v) //argp matches.
+			//account for 0 arg case
+			if len(argm) == 0 {
+				break
+			}
+			arg := argm[1] //0 would work too...
+			args = append(args, arg)
+			varsetidxs := findvarsets(body)
+			vardecidxs := findvardecs(body)
+			//TODO: convert above 2 vars to strings, add to f struct
+			_ = varsetidxs
+			_ = vardecidxs
+			//TODO: write and call here func to find function calls
+		}
+		fns = append(fns, fn{name: name, args: args, body: body})
+	}
+	return fns
 }
 
 func findvardecs(s string) [][]int {

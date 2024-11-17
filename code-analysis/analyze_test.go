@@ -50,7 +50,17 @@ func TestFindVarDecs(t *testing.T) {
 			t.Log("want:\n" + "\"" + wantstrs[i] + "\"")
 		}
 	}
-
+}
+func TestParseFunctions(t *testing.T) {
+	s := get("./excode/ex1.go")
+	f := parseFunctions(s, findFunctions(s))
+	fmt.Print(f)
+}
+func Examplefindvardecs() {
+	s := "var x int\n//comment"
+	arr := findvardecs(s)
+	fmt.Printf("%s", s[arr[0][0]:arr[0][1]])
+	//Output: var x int
 }
 func TestFindVarSets(t *testing.T) {
 	s := get("./excode/ex1.go")
@@ -58,7 +68,6 @@ func TestFindVarSets(t *testing.T) {
 	want := []string{`z = x / 2`,
 		`z = z * 2`,
 		`y = z - 3`}
-
 	if !check(s, arr, want) {
 		t.Fail()
 	}
