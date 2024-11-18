@@ -60,14 +60,15 @@ func (q ParseG) String() string {
 	}
 	return s
 }
-//should just be renamed Parse
+
+// should just be renamed Parse
 func (g ParseG) ParseEach(name, pattern string) ParseG {
 	var newg ParseG
 	for _, v := range g {
 		p := v.Parse(name, pattern)
 		newg = append(newg, p...)
 	}
-	return all
+	return newg
 }
 
 // parse a temporary property
@@ -84,19 +85,21 @@ func (g ParseG) Temp(name, pattern string) ParseG {
 func (q *ParseNd) Save(newp ParseG) {
 	f := func(current *ParseNd) {
 		current.rSave(newp, q)
-		}
+	}
 	q.Walk(f)
 }
 
 // non-public helper func
 func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
-	for i := range newp{
+	for i := range newp {
 		q := &newp[i]
-		if current == q{
+		if current == q {
 			//I should never have started doing this numbering thing
 			nl := strings.IndexAny(q.name, "0123456789")
-			name:= q.name[0:nl] 
-			anc.p[name] = append(anc.p[name], q)
+			name := q.name[0:nl]
+			qcopy := *q
+			qcopy.name= name
+			anc.p[name] = append(anc.p[name], qcopy)
 		}
+	}
 }
-
