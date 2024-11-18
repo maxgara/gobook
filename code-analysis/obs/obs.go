@@ -18,6 +18,22 @@ type ParseNd struct {
 
 const MAXMATCH = 100 //control maximum matches per parse
 
+const teststr = `func f1(int a, int b) int{
+    a = a+b
+    return a*b
+}`
+
+func main(){
+file := NewParseNd("f", teststr)
+
+ftemp:= file.Temp("ft", "func.*")
+fmt.Println(file)
+fmt.Println(ftemp)
+}
+
+func NewParseNd(name, val string) *ParseNd{
+ return &ParseNd{name:name, s:val, p:make(map[string]ParseG)}
+}
 func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
 	for _, g := range q.p {
@@ -31,11 +47,11 @@ func (q *ParseNd) Walk(f func(q *ParseNd)) {
 func (q *ParseNd) Parse(name, pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
 	arr := p.FindAllString(q.s, MAXMATCH)
-	var g ParseG = ParseG{}
+	var g ParseG
 	for i, s := range arr {
 		//keep Temp suffix at the end.
 		var newname string
-		if basename, temp := strings.CutSuffix(s, "Temp"); temp {
+		if basename, temp := strings.CutSuffix(name, "Temp"); temp {
 			newname = basename + fmt.Sprintf("%v", i) + "Temp"
 		} else {
 			newname = basename + fmt.Sprintf("%v", i)
@@ -48,8 +64,11 @@ func (q *ParseNd) Parse(name, pattern string) ParseG {
 }
 func (q ParseNd) String() string {
 	pstr := "pEMPTY"
-	if len(pstr) != 0 {
-		pstr = fmt.Sprintf("%v", pstr)
+	if len(q.p) != 0 {
+	    for k,v := range q.p{
+		
+		pstr = fmt.Sprintf("%v:%v\n", k,v)
+		}
 	}
 	return fmt.Sprintf("%v:\"%v\"; props:%v", q.name, q.s, pstr)
 }
@@ -61,7 +80,7 @@ func (q ParseG) String() string {
 	return s
 }
 
-// should just be renamed Parse
+// should just be named Parse
 func (g ParseG) ParseEach(name, pattern string) ParseG {
 	var newg ParseG
 	for _, v := range g {
