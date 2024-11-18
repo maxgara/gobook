@@ -60,12 +60,12 @@ func (q ParseG) String() string {
 	}
 	return s
 }
-
+//should just be renamed Parse
 func (g ParseG) ParseEach(name, pattern string) ParseG {
-	var all ParseG
+	var newg ParseG
 	for _, v := range g {
-		newobs := v.Parse(name, pattern)
-		all = append(all, newobs...)
+		p := v.Parse(name, pattern)
+		newg = append(newg, p...)
 	}
 	return all
 }
@@ -82,33 +82,21 @@ func (g ParseG) Temp(name, pattern string) ParseG {
 
 // assign property p to ancestor g, minus elements of p not descended from o. remove Temp suffix if present.
 func (q *ParseNd) Save(newp ParseG) {
-	q.rSave(newp, q)
+	f := func(current *ParseNd) {
+		current.rSave(newp, q)
+		}
+	q.Walk(f)
 }
 
 // non-public helper func
 func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
-	for _, v := range newp {
-		if current == &v {
-			//remove old suffix
-			cut := current.Temp("nodigits", `^\d+(Temp)?$`)
-			newname := strings.TrimSuffix(current.name, cut[0].s) //base name, no suffix
-			ls := fmt.Sprintf("%v", len(anc.p[newname]))          //get new numbering
-			//assign prop using base name
-			anc.p[newname] = append(anc.p[newname], v)
-			//add new suffix to attached node
-			newname += ls
-			v.name = newname
-			break
+	for i := range newp{
+		q := &newp[i]
+		if current == q{
+			//I should never have started doing this numbering thing
+			nl := strings.IndexAny(q.name, "0123456789")
+			name:= q.name[0:nl] 
+			anc.p[name] = append(anc.p[name], q)
 		}
-	}
-	for _, v := range current.p {
-		for _, w := range v {
-			w.rSave(newp, anc)
-		}
-	}
 }
 
-// Push each Ob in p to an ancestor in O
-func (g ParseG) Push(p ParseG) []string {
-	return nil
-}
