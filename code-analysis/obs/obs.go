@@ -1,40 +1,17 @@
-package main
-
-import (
-	"fmt"
-	"regexp"
-	"strings"
-)
-
-// object group
-type ParseG []ParseNd
-
-// object
-type ParseNd struct {
-	name string //if name matches Temp$, prop may eventually be purged. Don't add numbers
-	s    string
-	p    map[string]ParseG //props; child node group
-}
-
-const MAXMATCH = 100 //control maximum matches per parse
-
-const teststr = `func f1(int a, int b) int{
-    a = a+b
-    return a*b
-}
-func f2 () string{ 
-return "bye"
-}
-`
+const easystr = "func x ()"
 
 func main() {
-	file := NewParseNd("f", teststr)
+	file := NewParseNd("f", easystr)
 
 	ftemp := file.Temp("ft", "func.*")
 	fmt.Println(ftemp)
-	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
-	fnames := ftemp.ParseEach("func_name", `\w+\b`)
-	file.Save(fnames)
+	//ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
+	//fnames := ftemp.ParseEach("func_name", `\w+\b`)
+	file.Save(ftemp)
+	file.Save(ftemp)
+	file.Walk(func(q *ParseNd) { return })
+	file.Walk(func(q *ParseNd) { return })
+	file.Walk(func(q *ParseNd) { return })
 	fmt.Println(file)
 }
 
@@ -43,6 +20,7 @@ func NewParseNd(name, val string) *ParseNd {
 }
 func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
+	fmt.Printf("walking %v: %p\n", q.name, q)
 	for _, g := range q.p {
 		for _, next := range g {
 			next.Walk(f)
@@ -123,9 +101,10 @@ func (q *ParseNd) Save(newp ParseG) {
 
 // non-public helper func
 func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
-	fmt.Printf("rsave at %v", *current)
+	fmt.Printf("rsave at %v %p", *current, current)
 	for i := range newp {
 		q := &newp[i]
+		fmt.Printf("looking for %p\n", q)
 		if current == q {
 			fmt.Printf("found match: $%v$\n", *q)
 			//I should never have started doing this numbering thing
@@ -137,125 +116,3 @@ func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
