@@ -1,3 +1,31 @@
+package main
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+// object group
+type ParseG []ParseNd
+
+// object
+type ParseNd struct {
+	name string //if name matches Temp$, prop may eventually be purged. Don't add numbers
+	s    string
+	p    map[string]ParseG //props; child node group
+}
+
+const MAXMATCH = 100 //control maximum matches per parse
+
+const teststr = `func f1(int a, int b) int{
+    a = a+b
+    return a*b
+}
+func f2 () string{ 
+return "bye"
+}
+`
 const easystr = "func x ()"
 
 func main() {
@@ -7,7 +35,6 @@ func main() {
 	fmt.Println(ftemp)
 	//ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
 	//fnames := ftemp.ParseEach("func_name", `\w+\b`)
-	file.Save(ftemp)
 	file.Save(ftemp)
 	file.Walk(func(q *ParseNd) { return })
 	file.Walk(func(q *ParseNd) { return })
@@ -22,7 +49,8 @@ func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
 	fmt.Printf("walking %v: %p\n", q.name, q)
 	for _, g := range q.p {
-		for _, next := range g {
+		for i, _ := range g {
+			next := &g[i] // has to be a reference
 			next.Walk(f)
 		}
 	}
