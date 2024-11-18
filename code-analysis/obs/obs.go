@@ -27,17 +27,18 @@ return "bye"
 }
 `
 
-func main(){
-file := NewParseNd("f", teststr)
+func main() {
+	file := NewParseNd("f", teststr)
 
-ftemp:= file.Temp("ft", "func.*")
-fmt.Println(ftemp)
-ftemp.ParseEach("tmpn", `\w+\s?\(`)
-fmt.Println(file)
+	ftemp := file.Temp("ft", "func.*")
+	fmt.Println(ftemp)
+	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
+	ftemp.ParseEach("func_name", `\w+\b`)
+	fmt.Println(file)
 }
 
-func NewParseNd(name, val string) *ParseNd{
- return &ParseNd{name:name, s:val, p:make(map[string]ParseG)}
+func NewParseNd(name, val string) *ParseNd {
+	return &ParseNd{name: name, s: val, p: make(map[string]ParseG)}
 }
 func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
@@ -52,6 +53,11 @@ func (q *ParseNd) Walk(f func(q *ParseNd)) {
 func (q *ParseNd) Parse(name, pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
 	arr := p.FindAllString(q.s, MAXMATCH)
+	return strgrp(name, arr, q)
+}
+
+// convert arr to ParseG and add to q
+func strgrp(name string, arr []string, q *ParseNd) ParseG {
 	var g ParseG
 	for i, s := range arr {
 		//keep Temp suffix at the end.
@@ -67,12 +73,13 @@ func (q *ParseNd) Parse(name, pattern string) ParseG {
 	q.p[name] = g
 	return g
 }
+
 func (q ParseNd) String() string {
 	pstr := "pEMPTY"
 	if len(q.p) != 0 {
-	    for k,v := range q.p{
-		
-		pstr = fmt.Sprintf("%v:%v\n", k,v)
+		for k, v := range q.p {
+
+			pstr = fmt.Sprintf("%v:\n%v\n", k, v)
 		}
 	}
 	return fmt.Sprintf("%v:\"%v\"; props:%v", q.name, q.s, pstr)
@@ -122,7 +129,7 @@ func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
 			nl := strings.IndexAny(q.name, "0123456789")
 			name := q.name[0:nl]
 			qcopy := *q
-			qcopy.name= name + "0"
+			qcopy.name = name + "0"
 			anc.p[name] = append(anc.p[name], qcopy)
 		}
 	}
