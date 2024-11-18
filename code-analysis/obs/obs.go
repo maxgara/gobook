@@ -3,56 +3,89 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // object group
-type Obs []Ob
+type ParseG []ParseNd
 
 // object
-type Ob struct {
-	name string //if name matches Temp$, prop may eventually be purged
-	val  string
-	p    map[string]Obs //props
+type ParseNd struct {
+	name string //if name matches Temp$, prop may eventually be purged. Don't add numbers
+	s    string
+	p    map[string]ParseG //props; child node group
 }
 
-const MAXMATCH = -1 //control maximum matches per parse
+const MAXMATCH = 100 //control maximum matches per parse
 
 // ex: Ob FileString -> Obg Function [3obs]-> Obg [fname] [1ob]
-func (o *Ob) Parse(name, pattern string) Obs {
+func (q *ParseNd) Parse(name, pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
-	arr := p.FindAllString(o.val, MAXMATCH)
-	var g Obs = Obs{}
+	arr := p.FindAllString(q.s, MAXMATCH)
+	var g ParseG = ParseG{}
 	for i, s := range arr {
-		newname := name + fmt.Sprintf("%v", i)
-		newob := Ob{name: newname, val: s, p: make(map[string]Obs)}
+		//keep Temp suffix at the end.
+		var newname string
+		if newname, temp := strings.CutSuffix(s, "Temp"); temp {
+			newname += fmt.Sprintf("%v", i) + "Temp"
+		} else {
+			newname += fmt.Sprintf("%v", i)
+		}
+		newob := ParseNd{name: newname, s: s, p: make(map[string]ParseG)}
 		g = append(g, newob)
 	}
-	o.p[name] = g
+	q.p[name] = g
 	return g
 }
 
-func (o Obs) ParseEach(name, pattern string) Obs {
-	var all Obs
-	for _, v := range o {
+func (g ParseG) ParseEach(name, pattern string) ParseG {
+	var all ParseG
+	for _, v := range g {
 		newobs := v.Parse(name, pattern)
 		all = append(all, newobs...)
 	}
 	return all
 }
-//parse a temporary property
-func (o *Ob) Temp(name, pattern string) Obs {
-	return o.Parse(name+"Temp", pattern)
+
+// parse a temporary property
+func (q *ParseNd) Temp(name, pattern string) ParseG {
+	return q.Parse(name+"Temp", pattern)
 }
-//parse a temporary property
-func (o Obs) Temp(name, pattern string) Obs {
-	return o.ParseEach(name+"Temp", pattern)
+
+// parse a temporary property
+func (g ParseG) Temp(name, pattern string) ParseG {
+	return g.ParseEach(name+"Temp", pattern)
 }
-//assign property p to ancestor o. remove Temp suffix
-func (o Ob) Save(prop Obs) []string {
+
+// assign property p to ancestor g, minus elements of p not descended from o. remove Temp suffix if present.
+func (q *ParseNd) Save(newp ParseG) {
+	q.rSave(newp, q)
+}
+
+// non-public helper func
+func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
+	for _, v := range newp {
+		if current == &v {
+			//remove old suffix
+			cut := current.Temp("nodigits", `^\d+(Temp)?$`)
+			newname := strings.TrimSuffix(current.name, cut[0].s) //base name, no suffix
+			ls := fmt.Sprintf("%v", len(anc.p[newname]))          //get new numbering
+			//assign prop using base name
+			anc.p[newname] = append(anc.p[newname], v)
+			//add new suffix to attached node
+			newname += ls
+			v.name = newname
+			break
+		}
+	}
+	for _, v := range current.p {
+		for _, w := range v {
+			w.rSave(newp, anc)
+		}
+	}
+}
+
+// Push each Ob in p to an ancestor in O
+func (g ParseG) Push(p ParseG) []string {
 	return nil
-}
-//non-public helper func
-func (o Obs) rSave (prop Obs, anc *Ob)
-//Push each Ob in p to an ancestor in O
-func (o Obs) Push(p Obs) []string {
 }
