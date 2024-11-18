@@ -33,14 +33,15 @@ func main() {
 	ftemp := file.Temp("ft", "func.*")
 	fmt.Println(ftemp)
 	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
-	ftemp.ParseEach("func_name", `\w+\b`)
+	fnames:= ftemp.ParseEach("func_name", `\w+\b`)
+	file.Save(fnames)
 	fmt.Println(file)
 }
 
 func NewParseNd(name, val string) *ParseNd {
 	return &ParseNd{name: name, s: val, p: make(map[string]ParseG)}
 }
-func (q *ParseNd) Walk(f func(q *ParseNd)) {
+func (q *ParseNd) Walk(func (q *ParseNd)) {
 	f(q)
 	for _, g := range q.p {
 		for _, next := range g {
