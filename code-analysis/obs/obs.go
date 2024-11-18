@@ -18,6 +18,15 @@ type ParseNd struct {
 
 const MAXMATCH = 100 //control maximum matches per parse
 
+func (q *ParseNd) Walk(f func(q *ParseNd)) {
+	f(q)
+	for _, g := range q.p {
+		for _, next := range g {
+			next.Walk(f)
+		}
+	}
+}
+
 // ex: Ob FileString -> Obg Function [3obs]-> Obg [fname] [1ob]
 func (q *ParseNd) Parse(name, pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
