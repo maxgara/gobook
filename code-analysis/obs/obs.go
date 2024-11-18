@@ -33,7 +33,7 @@ func main() {
 	ftemp := file.Temp("ft", "func.*")
 	fmt.Println(ftemp)
 	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
-	fnames:= ftemp.ParseEach("func_name", `\w+\b`)
+	fnames := ftemp.ParseEach("func_name", `\w+\b`)
 	file.Save(fnames)
 	fmt.Println(file)
 }
@@ -41,7 +41,7 @@ func main() {
 func NewParseNd(name, val string) *ParseNd {
 	return &ParseNd{name: name, s: val, p: make(map[string]ParseG)}
 }
-func (q *ParseNd) Walk(func (q *ParseNd)) {
+func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
 	for _, g := range q.p {
 		for _, next := range g {
@@ -123,9 +123,11 @@ func (q *ParseNd) Save(newp ParseG) {
 
 // non-public helper func
 func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
+	fmt.Printf("rsave at %v", *current)
 	for i := range newp {
 		q := &newp[i]
 		if current == q {
+			fmt.Printf("found match: $%v$\n", *q)
 			//I should never have started doing this numbering thing
 			nl := strings.IndexAny(q.name, "0123456789")
 			name := q.name[0:nl]
@@ -135,3 +137,125 @@ func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
 		}
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
