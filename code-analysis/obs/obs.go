@@ -10,10 +10,9 @@ type Obs []Ob
 
 // object
 type Ob struct {
-	name string
+	name string //if name matches Temp$, prop may eventually be purged
 	val  string
 	p    map[string]Obs //props
-	temp map[string]Obs //temporary props
 }
 
 const MAXMATCH = -1 //control maximum matches per parse
@@ -40,13 +39,14 @@ func (o Obs) ParseEach(name, pattern string) Obs {
 	}
 	return all
 }
-
-// read prop p for all x in o and return set of all x.y.val
-func (o Obs) Get(p string) []string {
-	//TODO
-	return nil
+func (o *Ob) Temp(name, pattern string) Obs {
+	return o.Parse(name+"Temp", pattern)
+}
+func (o Obs) Temp(name, pattern string) Obs {
+	return o.ParseEach(name+"Temp", pattern)
 }
 
 func (o Obs) Push(p Obs) []string {
-
+	// TODO
+	return nil
 }
