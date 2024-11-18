@@ -39,14 +39,20 @@ func (o Obs) ParseEach(name, pattern string) Obs {
 	}
 	return all
 }
+//parse a temporary property
 func (o *Ob) Temp(name, pattern string) Obs {
 	return o.Parse(name+"Temp", pattern)
 }
+//parse a temporary property
 func (o Obs) Temp(name, pattern string) Obs {
 	return o.ParseEach(name+"Temp", pattern)
 }
-
-func (o Obs) Push(p Obs) []string {
-	// TODO
+//assign property p to ancestor o. remove Temp suffix
+func (o Ob) Save(prop Obs) []string {
 	return nil
+}
+//non-public helper func
+func (o Obs) rSave (prop Obs, anc *Ob)
+//Push each Ob in p to an ancestor in O
+func (o Obs) Push(p Obs) []string {
 }
