@@ -26,16 +26,30 @@ func (q *ParseNd) Parse(name, pattern string) ParseG {
 	for i, s := range arr {
 		//keep Temp suffix at the end.
 		var newname string
-		if newname, temp := strings.CutSuffix(s, "Temp"); temp {
-			newname += fmt.Sprintf("%v", i) + "Temp"
+		if basename, temp := strings.CutSuffix(s, "Temp"); temp {
+			newname = basename + fmt.Sprintf("%v", i) + "Temp"
 		} else {
-			newname += fmt.Sprintf("%v", i)
+			newname = basename + fmt.Sprintf("%v", i)
 		}
 		newob := ParseNd{name: newname, s: s, p: make(map[string]ParseG)}
 		g = append(g, newob)
 	}
 	q.p[name] = g
 	return g
+}
+func (q ParseNd) String() string {
+	pstr := "pEMPTY"
+	if len(pstr) != 0 {
+		pstr = fmt.Sprintf("%v", pstr)
+	}
+	return fmt.Sprintf("%v:\"%v\"; props:%v", q.name, q.s, pstr)
+}
+func (q ParseG) String() string {
+	var s string
+	for _, v := range q {
+		s += v.String() + "\n"
+	}
+	return s
 }
 
 func (g ParseG) ParseEach(name, pattern string) ParseG {
