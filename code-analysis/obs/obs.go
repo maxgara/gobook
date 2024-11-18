@@ -21,14 +21,19 @@ const MAXMATCH = 100 //control maximum matches per parse
 const teststr = `func f1(int a, int b) int{
     a = a+b
     return a*b
-}`
+}
+func f2 () string{ 
+return "bye"
+}
+`
 
 func main(){
 file := NewParseNd("f", teststr)
 
 ftemp:= file.Temp("ft", "func.*")
-fmt.Println(file)
 fmt.Println(ftemp)
+ftemp.ParseEach("tmpn", `\w+\s?\(`)
+fmt.Println(file)
 }
 
 func NewParseNd(name, val string) *ParseNd{
