@@ -117,7 +117,7 @@ func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
 			nl := strings.IndexAny(q.name, "0123456789")
 			name := q.name[0:nl]
 			qcopy := *q
-			qcopy.name= name
+			qcopy.name= name + "0"
 			anc.p[name] = append(anc.p[name], qcopy)
 		}
 	}
