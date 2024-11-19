@@ -32,14 +32,16 @@ func main() {
 	file := NewParseNd("f", easystr)
 
 	ftemp := file.Temp("ft", "func.*")
-	fmt.Println(ftemp)
-	//ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
-	//fnames := ftemp.ParseEach("func_name", `\w+\b`)
-	file.Save(ftemp)
-	file.Walk(func(q *ParseNd) { return })
-	file.Walk(func(q *ParseNd) { return })
-	file.Walk(func(q *ParseNd) { return })
-	fmt.Println(file)
+	//fmt.Println(ftemp)
+	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
+	fnames := ftemp.ParseEach("func_name", `\w+\b`)
+	file.Save(fnames)
+	file.Save(fnames)
+	fnames[0].s = "changed"
+	file.Save(fnames)
+	fmt.Println(file.DeepString())
+	fmt.Println(fnames[0])
+
 }
 
 func NewParseNd(name, val string) *ParseNd {
@@ -47,7 +49,7 @@ func NewParseNd(name, val string) *ParseNd {
 }
 func (q *ParseNd) Walk(f func(q *ParseNd)) {
 	f(q)
-	fmt.Printf("walking %v: %p\n", q.name, q)
+	//fmt.Printf("walking %v: %p\n", q.name, q)
 	for _, g := range q.p {
 		for i, _ := range g {
 			next := &g[i] // has to be a reference
@@ -80,7 +82,6 @@ func strgrp(name string, arr []string, q *ParseNd) ParseG {
 	q.p[name] = g
 	return g
 }
-
 func (q ParseNd) String() string {
 	pstr := "pEMPTY"
 	if len(q.p) != 0 {
@@ -91,10 +92,28 @@ func (q ParseNd) String() string {
 	}
 	return fmt.Sprintf("%v:\"%v\"; props:%v", q.name, q.s, pstr)
 }
+
+func (q ParseNd) DeepString() string {
+	pstr := "pEMPTY"
+	if len(q.p) != 0 {
+		for k, v := range q.p {
+
+			pstr = fmt.Sprintf("%v:\n%v\n", k, v.DeepString())
+		}
+	}
+	return fmt.Sprintf("%v:\"%v\"; props:%v", q.name, q.s, pstr)
+}
+func (q ParseG) DeepString() string {
+	var s string
+	for _, v := range q {
+		s += v.DeepString() + "\n"
+	}
+	return s
+}
 func (q ParseG) String() string {
 	var s string
 	for _, v := range q {
-		s += v.String() + "\n"
+		s += v.name + "\n"
 	}
 	return s
 }
@@ -129,7 +148,7 @@ func (q *ParseNd) Save(newp ParseG) {
 
 // non-public helper func
 func (current *ParseNd) rSave(newp ParseG, anc *ParseNd) {
-	fmt.Printf("rsave at %v %p", *current, current)
+	fmt.Printf("rsave at %p", current)
 	for i := range newp {
 		q := &newp[i]
 		fmt.Printf("looking for %p\n", q)
