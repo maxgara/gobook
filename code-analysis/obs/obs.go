@@ -30,17 +30,25 @@ const easystr = "func x ()"
 
 func main() {
 	file := NewParseNd("f", easystr)
+	ftemp := file.Parse("ft", "func.*")
+	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
+	file.p["ft"][0].s = "new"
 
-	ftemp := file.Temp("ft", "func.*")
+	fmt.Println(file.p["ft"][0])
 	//fmt.Println(ftemp)
 	ftemp = ftemp.ParseEach("tmpn", `\w+\s?\(`)
-	fnames := ftemp.ParseEach("func_name", `\w+\b`)
-	file.Save(fnames)
-	file.Save(fnames)
-	fnames[0].s = "changed"
-	file.Save(fnames)
+	//fnames := ftemp.ParseEach("func_name", `\w+\b`)
+	//fnames[0].s = "changed"
+	//file.p["ftTemp"][0].s = "new"
+	//fmt.Println(fnames.DeepString())
+	//fmt.Println(file.DeepString())
+	//file.Save(fnames)
+	//file.Save(fnames)
+	//fnames[0].s = "changed"
+	//fmt.Println(file.DeepString())
+	//file.Save(fnames)
 	fmt.Println(file.DeepString())
-	fmt.Println(fnames[0])
+	fmt.Println(ftemp)
 
 }
 
