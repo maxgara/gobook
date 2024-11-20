@@ -3,13 +3,19 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
+
+//Next Up: add functionality to name a property in the group's regex expression.
 
 const MAXMATCH = 100 //control maximum matches per parse
 
 func main() {
-	_ = NewParseNd("f")
-	ExampleParseNd_Parse()
+	s := "abc abd abx bay pab"
+	x := NewParseNd(s)
+	words := x.NamedParse("abc (?<myname>..)")
+	fmt.Print(words)
+
 }
 
 // object group
@@ -52,7 +58,46 @@ func (q *ParseNd) Walk(f func(q *ParseNd) bool) {
 	}
 }
 
-// ex: Ob FileString -> Obg Function [3obs]-> Obg [fname] [1ob]
+// name the properties you want parsed out using <?name> syntax in pattern. Uses previous Parse function to work
+// supports multiple property extractions per call, probably could have simplified this a little by only supporting one
+// I have just realized in the course of debugging that golang's regexp lib already supports named captures...  :(
+func (q *ParseNd) NamedParse(pattern string) ParseG {
+	pnode := NewParseNd(pattern)
+	caps := pnode.Parse(`\(\?<\w+>[^\)]+\)`) //parse named capture from full pattern
+	fmt.Println("named capture groups found:")
+	fmt.Println(caps)
+	namenodes := caps.Parse(`\w+`) //parse name from named capture
+	fmt.Println("names from named capture groups:")
+	fmt.Println(namenodes)
+	var names []string
+	for _, v := range caps {
+		idx := strings.Index(pattern, string(v.val)) // find named capture idx in original pattern
+		namenode := v.p["0"][0]                      //get name node attached named capture node
+		namel := len(namenode.val)
+		beforen := pattern[:1+idx] // pattern until ?
+		fmt.Printf("beforen: '%v'\n", beforen)
+		name := pattern[3+idx : namel+idx] // name
+		fmt.Printf("name: '%v'\n", name)
+		var aftern = "" //pattern after > ,Default val empty before bounds check
+		if len(pattern) > len(v.val)+idx {
+			aftern = pattern[len(v.val):] // pattern after n (should be checking for bounds here)******
+		}
+		pattern = beforen + aftern //modify pattern to exclude name part
+		names = append(names, name)
+	}
+	fmt.Println("actual names, extracted:")
+	fmt.Println(names)
+	q.Parse(pattern) //return val
+	var ret ParseG
+	for i, name := range names {
+		mapk := fmt.Sprint(i)
+		q.p[name] = q.p[mapk]
+		delete(q.p, mapk)
+		ret = append(ret, q.p[name]...)
+	}
+	return ret
+}
+
 func (q *ParseNd) Parse(pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
 	arr := p.FindAll(q.val, MAXMATCH)
@@ -63,7 +108,7 @@ func (q *ParseNd) Parse(pattern string) ParseG {
 func slcgrp(arr [][]byte, q *ParseNd) ParseG {
 	var g ParseG
 	for _, s := range arr {
-		newob := &ParseNd{val: s, p: make(map[string]ParseG)}
+		newob := &ParseNd{val: s, p: make(map[string]ParseG), anc: q}
 		g = append(g, newob)
 	}
 	name := fmt.Sprintf("%v", len(q.p))
@@ -71,7 +116,7 @@ func slcgrp(arr [][]byte, q *ParseNd) ParseG {
 	return g
 }
 
-func (g ParseG) Parse(name, pattern string) ParseG {
+func (g ParseG) Parse(pattern string) ParseG {
 	var newg ParseG
 	for _, v := range g {
 		p := v.Parse(pattern)
