@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"testing"
+)
 
 //	func ExampleParseNd_Parse() {
 //		s := "abc abc abd abx bay pav"
@@ -11,38 +14,13 @@ import "fmt"
 func ExampleParseNd_Parse() {
 	s := "abc abd abx bay pab"
 	x := NewParseNd(s)
-	words := x.Parse("ab.?")
-	fmt.Print(words)
-	//output: [node:abc
-	// 	p:
-	// 	anc:0x0
-	//  node:abd
-	// 	p:
-	// 	anc:0x0
-	//  node:abx
-	// 	p:
-	// 	anc:0x0
-	//  node:ab
-	// 	p:
-	// 	anc:0x0
-	// ]
+	words := x.Parse("abc (?<myname>..)")
+	fmt.Println(words)
+	fmt.Println(x)
+	// Output: asdasasa
 }
-func ExampleParseNd_NamedParse() {
-	s := "abc abd abx bay pab"
-	x := NewParseNd(s)
-	words := x.NamedParse("abc (?<myname>..)")
-	fmt.Print(words)
-	//output: [node:abc
-	// 	p:
-	// 	anc:0x0
-	//  node:abd
-	// 	p:
-	// 	anc:0x0
-	//  node:abx
-	// 	p:
-	// 	anc:0x0
-	//  node:ab
-	// 	p:
-	// 	anc:0x0
-	// ]
+func TestPname(t *testing.T) {
+	p := "abc (?<myname>..)"
+	pn := pname(p)
+	fmt.Println(pn)
 }
