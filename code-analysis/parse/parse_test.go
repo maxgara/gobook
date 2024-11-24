@@ -1,4 +1,4 @@
-package main
+package parse
 
 import (
 	"fmt"
@@ -16,6 +16,13 @@ func ExampleParseNd_Parse() {
 	x := NewParseNd(s)
 	words := x.Parse("abc (?<myname>..)")
 	fmt.Println(words)
+	fmt.Println(x)
+	// Output: asdasasa
+}
+func ExampleParseNd_Parse_Two() {
+	s := "abc abd abx bay pab"
+	x := NewParseNd(s)
+	x.Temp("(?<myname>ab.)").Parse("(?<myname2>.)")
 	fmt.Println(x)
 	// Output: asdasasa
 }
