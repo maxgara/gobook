@@ -20,7 +20,8 @@ type ParseNd struct {
 	anc  *ParseNd          //direct ancestor
 	Base *[]byte
 	temp bool
-	Idx  int //relative to base
+	Idx  int    //relative to base
+	fqn  string //fully qualified name
 }
 
 func NewParseNd(val string) *ParseNd {
@@ -28,23 +29,51 @@ func NewParseNd(val string) *ParseNd {
 	return &ParseNd{Val: base, p: make(map[string]ParseG), Idx: 0, Base: &base}
 }
 func (q *ParseNd) String() string {
-	var pstr string
-	for k, v := range q.p {
-		pstr += fmt.Sprintf("\t%v\n%v\n", k, v)
+	return q.rString(0, "NODE")
+}
+func (q *ParseNd) rString(ind int, name string) string {
+	var s string
+	if name == "" {
+		name = "Node"
 	}
-	return fmt.Sprintf("node:%s\noffset:%v\n\tp:\n%v", q.Val, q.Idx, pstr)
+	s += q.stringnd(ind, name)
+	ind++
+	for pname, g := range q.p {
+		for idx, nd := range g {
+			name := fmt.Sprintf(".%v[%v]", pname, idx)
+			s += nd.rString(ind, name)
+		}
+	}
+	return s
+}
+
+// simple node string func without props, using specified indent and name
+func (q *ParseNd) stringnd(ind int, name string) string {
+	valstr := "\"" + string(q.Val) + "\""
+	arr := strings.Split(valstr, "\n")
+	inds := strings.Repeat("\t", ind)
+	out := inds + name + ":"
+	//one line value: keep on one line
+	if len(arr) == 1 {
+		out += valstr + "\n"
+		return out
+	}
+	//multiline value: place val and node name on different lines
+	for _, l := range arr {
+		out += "\n" + inds + l
+	}
+	out += "\n"
+	return out
 }
 func (q ParseG) String() string {
-	//indent member node strings
 	var out string
 	for _, v := range q {
-		s := v.String()
-		out += "\t{\n\t" + strings.ReplaceAll(s, "\n", "\n\t") + "}\n"
+		out += v.String()
 	}
 	return out
 }
 
-func (q *ParseNd) Walk(f func(q *ParseNd) bool) {
+func (q *ParseNd) Walk(f func(q *ParseNd) (cont bool)) {
 	if !f(q) {
 		return
 	}
@@ -55,17 +84,88 @@ func (q *ParseNd) Walk(f func(q *ParseNd) bool) {
 	}
 }
 
-// parse first named subgroup as a property of q. if q is temp, then add properties to first non-temp
+// property reader. Does not read sub-properties.
+type preader struct {
+	idx int
+	Slc []pinfo
+	pinfo
+}
+type pinfo struct {
+	Nd    *ParseNd
+	Pname string // current property name
+	Gidx  int    //index of node in group Nd.p[Pname]
+}
+
+// create a new property reader for node q.
+func (q *ParseNd) newPreader() *preader {
+	var slc []pinfo
+	for name, g := range q.p {
+		for gidx, nd := range g {
+			info := pinfo{Nd: nd, Pname: name, Gidx: gidx}
+			slc = append(slc, info)
+		}
+	}
+	return &preader{Slc: slc}
+}
+func (pr *preader) Read() *ParseNd {
+	if pr.idx >= len(pr.Slc) {
+		return nil
+	}
+	inf := pr.Slc[pr.idx]
+	pr.pinfo = inf
+	pr.idx++
+	return inf.Nd
+}
+func (pr *preader) Text() string {
+	return pr.Nd.String()
+}
+func (pr *preader) String() string {
+	return fmt.Sprintf("%v[%v]", pr.Pname, pr.Gidx)
+}
+
+func (q *ParseNd) Refresh() {
+	// clear all temp properties
+	q.Walk(func(q *ParseNd) bool {
+		if !q.temp {
+			return true
+		}
+		parent := q.anc
+		for k, g := range parent.p {
+			for _, v := range g {
+				if v == q {
+					delete(parent.p, k)
+				}
+			}
+		}
+		return true
+	})
+	//add fqns
+	q.Walk(func(q *ParseNd) bool {
+		if q.anc == nil {
+			return true
+		}
+		q.fqn = q.anc.fqn + "/" + q.Name()
+		return true
+	})
+}
+
+// retrieve node's "name" from ancestor in format: propertyname[groupindex] = q.Name(); anc.p[propertyname][groupindex] = q
+func (q *ParseNd) Name() string {
+	r := q.anc.newPreader()
+	for r.Read() != nil {
+		if r.Nd == q {
+			return r.String()
+		}
+	}
+	return "" //root node or misconfiguration
+}
+
+// parse named subgroups as properties of q. if q is temp, then add properties to first non-temp ancestor.
 func (q *ParseNd) Parse(pattern string) ParseG {
 	p := regexp.MustCompile(pattern)
-	arr := p.FindAllSubmatchIndex(q.Val, MAXMATCH) // only first submatch is actually used
+	arr := p.FindAllSubmatchIndex(q.Val, MAXMATCH) // only first submatch of each match is used
 	name := pname(pattern)
-	g := slcgrp(arr, q)
-	//find non-temp ancestor of q (can be q itself)
-	for q.temp {
-		q = q.anc
-	}
-	q.p[name] = append(q.p[name], g...)
+	g := slcgrp(arr, q, name)
 	return g
 }
 
@@ -81,7 +181,7 @@ func (q *ParseNd) Temp(pattern string) ParseG {
 // extract name string from pattern
 func pname(p string) string {
 	np := regexp.MustCompile(`\?<\w+>`) // name pattern
-	nstr := np.FindString(p)            // name indexes
+	nstr := np.FindString(p)            // name
 	if len(nstr) == 0 {
 		return "" // no name found
 	}
@@ -90,16 +190,26 @@ func pname(p string) string {
 }
 
 // convert arr to ParseG and add to q as prop name
-func slcgrp(arr [][]int, q *ParseNd) ParseG {
+func slcgrp(arr [][]int, q *ParseNd, name string) ParseG {
 	var g ParseG
-	for _, bounds := range arr {
-		if len(bounds) <= 2 {
-			continue //no submatch group (either user didn't include one or it didn't match)
+	target := q
+	//find first non-temp ancestor as target for new property
+	for target.temp {
+		target = target.anc
+	}
+	for _, match := range arr {
+		if len(match) <= 2 {
+			return nil //no submatches in pattern, group undefined
 		}
-		val := q.Val[bounds[2]:bounds[3]] //bounds 2, 3 are the start, end idxs of first submatch
-		newnode := ParseNd{Val: val, p: map[string]ParseG{}, anc: q, Base: q.Base, Idx: bounds[2] + q.Idx}
+		//match 2, 3 are the start, end idxs of first submatch
+		start := match[2]
+		stop := match[3]
+		val := q.Val[start:stop]
+		newnode := ParseNd{Val: val, p: map[string]ParseG{}, anc: target, Base: q.Base, Idx: start + q.Idx}
 		g = append(g, &newnode)
 	}
+
+	target.p[name] = g
 	return g
 }
 
