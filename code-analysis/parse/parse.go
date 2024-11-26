@@ -1,3 +1,13 @@
+// this package allows easier parsing of complex strings using regular expressions. NewParseNd creates a new root node in a parse tree,
+// which is then expanded using calls to Parse(regex). Important: the regular expression must contain 1 named capture group!
+// calls to Parse can be chained to quickly build up a tree of property nodes. Parse can be called on a single node or a group (ParseG) of nodes,
+// allowing calls to Parse to be chained in order to quickly build a parse tree.
+// Extracting information from the tree structure can be done using the .Val property of individual nodes, calling Walk to walk the whole tree,
+// or using a pReader to get direct property values for the current node. Temp and Refresh methods support more complex parsing
+// by facilitating easy creation of temporary parse nodes. In the future there may be support for extraction of multiple properties
+// using a single regex string.
+// Future: There is also potential for a live extraction viewer application to see extraction results in real time,
+// as well as a generating command to create optimized static structures and extractions from the dynamic parse tree.
 package parse
 
 import (
@@ -5,8 +15,6 @@ import (
 	"regexp"
 	"strings"
 )
-
-//Next Up: add functionality to name a property in the group's regex expression.
 
 const MAXMATCH = 100 //control maximum matches per parse
 
