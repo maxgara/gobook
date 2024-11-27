@@ -17,7 +17,6 @@
 
         #inputblock {
             width: 90%;
-            height: 200;
             padding: 2%;
             margin: auto;
             margin-top: 2%;
@@ -27,8 +26,11 @@
             display: block;
             border: solid;
             width: 100%;
-            height: 100%;
             margin: auto;
+        }
+
+        #outputblock {
+            display: block;
         }
 
         #outputbody {
@@ -44,15 +46,17 @@
     <!-- flexbox to contain both input and output elements. -->
     <div id="outer">
         <div id="inputblock">
-            <label for="in">argument to function call (Parse)</label>
-            <textarea hx-post="/input" hx-trigger="keyup delay:500ms changed" type="text" id="in" name="input"
-                hx-target="body"></textarea>
-        </div>
-        <div id="outputblock">
-            <p>Web Object State</p>
-            <div id="outputbody">
-                {{.Webstring}}
+            <div id="inputs">
+                <label for="in">argument to function call (Parse)</label>
+                <textarea hx-post="/input" hx-trigger="keyup delay:500ms changed" type="text" id="in" name="input"
+                    hx-target="#outputblock"></textarea>
             </div>
+            <div>
+                <label for="addbutton">Add another input</label><br>
+                <button id="addbutton" hx-get="/uiupdate" hx-swap="beforeend" hx-target="#inputs">Add</button>
+            </div>
+        </div>
+        <div id="outputblock" hx-trigger="load" hx-get="/output" hx-swap="outerHTML">
         </div>
     </div>
 </body>
