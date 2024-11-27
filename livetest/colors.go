@@ -1,4 +1,4 @@
-package main
+package live
 
 import "fmt"
 
