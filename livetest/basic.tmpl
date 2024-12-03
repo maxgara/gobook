@@ -12,7 +12,8 @@
         #outer {
             text-align: center;
             display: flex;
-            flex-direction: column;
+            flex-direction: row-reverse;
+            /* flex-direction: column; */
         }
 
         #inputblock {
@@ -39,6 +40,10 @@
             margin: auto;
             background-color: gray;
         }
+
+        #outputbody:focus {
+            background-color: lightblue
+        }
     </style>
 </head>
 
@@ -48,12 +53,13 @@
         <div id="inputblock">
             <div id="inputs">
                 <label for="in">argument to function call (Parse)</label>
-                <textarea hx-post="/input" hx-trigger="keyup delay:500ms changed" type="text" id="in" name="input"
+                <textarea hx-post="/input" hx-trigger="keyup delay:500ms changed" type="text" id="input0" name="input"
                     hx-target="#outputblock"></textarea>
             </div>
             <div>
                 <label for="addbutton">Add another input</label><br>
-                <button id="addbutton" hx-get="/uiupdate" hx-swap="beforeend" hx-target="#inputs">Add</button>
+                <button id="addbutton" hx-get="/uiupdate" hx-swap="beforeend" hx-target="#inputs"
+                    hx-vals='js:{initiator:document.activeElement.id}'>Add</button>
             </div>
         </div>
         <div id="outputblock" hx-trigger="load" hx-get="/output" hx-swap="outerHTML">

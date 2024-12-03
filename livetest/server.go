@@ -3,6 +3,7 @@ package live
 import (
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 )
@@ -24,6 +25,12 @@ type WebModule interface {
 	WString() string
 	WInput(string)
 	WInit()
+}
+
+type WebModuleD interface {
+	WebModule
+	FirstChild() bool
+	NextSibling() bool
 }
 
 type tempstruct struct {
@@ -109,10 +116,92 @@ func liveprint(wm WebModule) {
 	http.HandleFunc("/uiupdate", uiUpdateHandler)
 	log.Fatal(http.ListenAndServe("localhost:8000", nil))
 }
-func LivePrint(target any) {
-	if wm, ok := target.(WebModule); !ok {
-		log.Fatal("bad webmodule. Type assertion failed.")
-	} else {
-		liveprint(wm)
+func printr(wm WebModuleD, w io.Writer) {
+	fmt.Printf("getting WString from webmodule:%v\n", wm.WString())
+	obj := tempstruct{Webstring: wm.WString()}
+	fmt.Printf("writing current wm")
+	statetempl.Execute(w, obj) //write html to resp
+	fmt.Printf("moving on to descs\n")
+	if wm.FirstChild() {
+		fmt.Println("got child")
+		printr(wm, w)
 	}
+	if wm.NextSibling() {
+		fmt.Println("got sib")
+		printr(wm, w)
+	}
+}
+
+func liveprintd(wm WebModuleD) {
+	//initialize
+	wm.WInit()
+	st0 := state{calls: make(map[string]string)}
+	st := st0
+	var ui []uicomp
+	//serve document
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		st = st0
+		doctempl = template.Must(template.ParseFiles(docTemplFile))
+		statetempl = template.Must(template.ParseFiles(stateTemplFile))
+		textareatempl = template.Must(template.ParseFiles(textareaTemplFile))
+		fmt.Printf("doc root handler called.\n")
+		doctempl.Execute(w, struct{}{}) //write html to resp
+		fmt.Printf("sent doc, handler done.\n")
+	}
+	//serve current state to user
+	readHandler := func(w http.ResponseWriter, r *http.Request) {
+		doctempl = template.Must(template.ParseFiles(docTemplFile))
+		statetempl = template.Must(template.ParseFiles(stateTemplFile))
+		textareatempl = template.Must(template.ParseFiles(textareaTemplFile))
+		fmt.Printf("read handler called. state is %v\n", st)
+		wm.WInit()
+		runstate(wm, st) //get system state for input state
+		printr(wm, w)
+		fmt.Printf("sent resp. handler done.\n")
+	}
+	//update state to match user
+	inputHandler := func(w http.ResponseWriter, r *http.Request) {
+		doctempl = template.Must(template.ParseFiles(docTemplFile))
+		statetempl = template.Must(template.ParseFiles(stateTemplFile))
+		textareatempl = template.Must(template.ParseFiles(textareaTemplFile))
+		fmt.Printf("input handler called. current (unsynced) server state :%v\n", st)
+		r.ParseForm()
+		callstr := r.Form.Get("input")
+		trigger := r.Header.Get("HX-Trigger")
+		statechange(&st, callstr, trigger)
+		fmt.Printf("input handled. state:%v\n", st)
+		fmt.Printf("input handler calling read handler.\n")
+		readHandler(w, r) // send back updated state to user
+	}
+	uiUpdateHandler := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("ui update handler called: current ui: %v\n", ui)
+		r.ParseForm()
+		_ = r.Form.Get("HX-Trigger")
+		newcomp := uicomp{"input" + fmt.Sprint(len(ui))}
+		ui = append(ui, newcomp)
+		textareatempl.Execute(w, newcomp)
+	}
+
+	doctempl = template.Must(template.ParseFiles(docTemplFile))
+	statetempl = template.Must(template.ParseFiles(stateTemplFile))
+	textareatempl = template.Must(template.ParseFiles(textareaTemplFile))
+	http.HandleFunc("/input", inputHandler)
+	http.HandleFunc("/", handler)
+	http.HandleFunc("/output", readHandler)
+	http.HandleFunc("/uiupdate", uiUpdateHandler)
+	log.Fatal(http.ListenAndServe("localhost:8000", nil))
+}
+
+func LivePrint(target any) {
+	if wm, ok := target.(WebModuleD); ok {
+		fmt.Printf("going into recursive WM mode...\n")
+		liveprintd(wm)
+		return
+	}
+	fmt.Printf("no recursive WM mode.\n")
+	if wm, ok := target.(WebModule); ok {
+		liveprint(wm)
+		return
+	}
+	log.Fatal("bad webmodule. Type assertion failed.")
 }
