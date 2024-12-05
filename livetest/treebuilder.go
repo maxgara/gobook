@@ -1,12 +1,12 @@
-package live
+package main
 
 //rename this file
-import "fmt"
 
 type Node struct {
 	id  string
+	val string
 	chl []*Node
-	dep int //depth of node in tree, root(s) have 0
+	dep int
 }
 
 // TODO: when more of the program is done, this will become an instance of a HTMLCanvas struct.
@@ -16,26 +16,30 @@ type Node struct {
 type NodeWriter struct {
 	nodes    map[string]*Node //map of nodes: [id_string]*node
 	parentof map[string]*Node //map of nodes [child_id_string]*parent_node
+	roots    []*Node
 }
 
 func NewNodeWriter() *NodeWriter {
 	return &NodeWriter{nodes: make(map[string]*Node), parentof: make(map[string]*Node)}
 }
 
-// should always work in one pass, doesn't get depths
-func (n *NodeWriter) Write(id any, cn []any) {
-	idstr := fmt.Sprint(id)
-	nn := Node{id: idstr}
+// todo: turn this into a post-processing func, only run when re-rendering and adding nodes.
+// todo:  Write optimized version for first render
+// should always construct tree in one pass, doesn't get depths or id root nodes.
+// id = new node id; val = new node val; chl= IDs of child nodes
+func (nw *NodeWriter) Write(id string, val string, chl []string) {
+	nn := Node{id: id, val: val}
+	nw.nodes[id] = &nn
 	//find children
-	for _, id := range cn {
-		chldIdStr := fmt.Sprint(id)
-		if chlnode, ok := n.nodes[chldIdStr]; ok {
-			nn.chl = append(nn.chl, chlnode)
+	for _, cid := range chl {
+		if child, ok := nw.nodes[cid]; ok {
+			nn.chl = append(nn.chl, child)
+			continue
 		}
-		n.parentof[chldIdStr] = &nn
-		//find parents
-		if parent, ok := n.parentof[idstr]; ok {
-			parent.chl = append(parent.chl, &nn)
-		}
+		nw.parentof[cid] = &nn
+	}
+	//find parent
+	if parent, ok := nw.parentof[id]; ok {
+		parent.chl = append(parent.chl, &nn)
 	}
 }

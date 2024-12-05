@@ -1,0 +1,31 @@
+<html>
+<style>
+    svg {
+        width: 1em;
+        height: 2em;
+    }
+</style>
+
+<head>
+
+</head>
+
+<body>
+    <!-- arrow -->
+    <svg id="arrow" viewbox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <polyline stroke="black" fill="none" points="50,0 50,50 100,50" />
+        <polyline stroke="none" fill="black" points="100,50 80,30 80,70 100,50" />
+    </svg>
+    {{range .}}
+    <div>
+        <svg id="arrow" viewbox="0 0 3 3" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <polyline stroke="black" fill="none" points="0,0 2,0" />
+        </svg>
+    </div>
+    <div style="margin-left:{{.Dep}}em">
+        {{.Val}}
+    </div>
+    {{end}}
+</body>
+
+</html>
