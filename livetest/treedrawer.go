@@ -27,12 +27,13 @@ func (nw *NodeWriter) String() string {
 	return buf.String()
 }
 
+// convenience func. -horrible formatting but good enough for debugging
 func basicprint(q *Node) string {
 	s := q.val + "\nchildren:[\n"
 	for _, ch := range q.chl {
 		s += basicprint(ch)
 	}
-	s += "]\n"
+	s += fmt.Sprintf("]{end %v}\n", q.val)
 	return s
 }
 
@@ -43,35 +44,42 @@ const upbranch = "┴"
 const rightbranch = "├"
 const lshape = "└"
 
+// compose a string displaying a tree from root node q
 func treestr(q *Node, w *strings.Builder, off int, pipetr []bool) {
+	//string of spaces and pipes continuing "behind" column off
 	backpipes := func() string {
 		s := ""
 		for _, show := range pipetr[:off] {
 			if show {
 				s += vpipe
+			} else {
+				s += " " //this is to prevent extra offset from backpipes
 			}
-			s += "\t"
+			s += "  "
 		}
 		return s
 	}
 	w.WriteString(q.val)
-	off++
+	var linefstr = "\n" + backpipes() + "%v" + hpipe + hpipe //general format string for child
 	switch len(q.chl) {
 	case 0:
 		//do nothing
 	case 1:
-		w.WriteString("\n" + backpipes() + lshape + hpipe + hpipe + hpipe + hpipe)
-		treestr(q.chl[0], w, off, pipetr)
+		s := fmt.Sprintf(linefstr, lshape)
+		w.WriteString(s)
+		treestr(q.chl[0], w, off+1, pipetr)
 	default:
 		l := len(q.chl)
 		for _, cnode := range q.chl[:l-1] {
-			w.WriteString("\n" + backpipes() + rightbranch + hpipe + hpipe + hpipe + hpipe)
-			pipetr[off] = true
-			treestr(cnode, w, off, pipetr)
+			pipetr[off] = true //toggle pipetr so that deeper levels have pipe at current off
+			s := fmt.Sprintf(linefstr, rightbranch)
+			w.WriteString(s)
+			treestr(cnode, w, off+1, pipetr)
 		}
-		pipetr[off] = false
-		w.WriteString("\n" + backpipes() + lshape + hpipe + hpipe + hpipe + hpipe)
-		treestr(q.chl[l-1], w, off, pipetr)
+		pipetr[off] = false //toggle off pipetr
+		s := fmt.Sprintf(linefstr, lshape)
+		w.WriteString(s)
+		treestr(q.chl[l-1], w, off+1, pipetr)
 	}
 }
 
