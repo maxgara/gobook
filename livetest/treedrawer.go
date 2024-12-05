@@ -14,24 +14,23 @@ func get_roots(nw *NodeWriter) {
 	}
 }
 
-// create HTML from object
+// create string from object
 func (nw *NodeWriter) String() string {
 	get_roots(nw)
 	var buf strings.Builder
 	for _, q := range nw.roots {
-		pipetr := make([]bool, 25) // pipetr[i] == 0 if no backgroup pipe at offset 0
+		pipetr := make([]bool, 25) // pipetr[i] == 0 if no background pipe at offset i.
 		treestr(q, &buf, 0, pipetr)
-		fmt.Print(basicprint(q))
 	}
 
 	return buf.String()
 }
 
 // convenience func. -horrible formatting but good enough for debugging
-func basicprint(q *Node) string {
+func basicString(q *Node) string {
 	s := q.val + "\nchildren:[\n"
 	for _, ch := range q.chl {
-		s += basicprint(ch)
+		s += basicString(ch)
 	}
 	s += fmt.Sprintf("]{end %v}\n", q.val)
 	return s
@@ -39,13 +38,14 @@ func basicprint(q *Node) string {
 
 const vpipe = "│"
 const hpipe = "─"
-const downbranch = "┬"
-const upbranch = "┴"
 const rightbranch = "├"
 const lshape = "└"
 
 // compose a string displaying a tree from root node q
 func treestr(q *Node, w *strings.Builder, off int, pipetr []bool) {
+	if off == len(pipetr) {
+		panic("recursion limit (default limit=25)")
+	}
 	//string of spaces and pipes continuing "behind" column off
 	backpipes := func() string {
 		s := ""
@@ -82,19 +82,3 @@ func treestr(q *Node, w *strings.Builder, off int, pipetr []bool) {
 		treestr(q.chl[l-1], w, off+1, pipetr)
 	}
 }
-
-type pnode struct {
-	Dep int
-	Val string
-}
-
-func getpnodes(q *Node, dep int, pns *[]pnode) {
-	*pns = append(*pns, pnode{Dep: dep, Val: q.val})
-	dep++
-	for _, chld := range q.chl {
-		getpnodes(chld, dep, pns)
-	}
-}
-
-// ├── analyze_test.go
-// ├──

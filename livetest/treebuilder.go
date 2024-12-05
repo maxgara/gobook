@@ -6,10 +6,9 @@ type Node struct {
 	id  string
 	val string
 	chl []*Node
-	dep int
 }
 
-// TODO: when more of the program is done, this will become an instance of a HTMLCanvas struct.
+// TODO: when more of the program is done, this will become an instance of an HTMLCanvas struct.
 // Actually word canvas might be confusing because of the existing <canvas> HTML tag..
 // maybe think of something else.
 // node processor, reconstructs tree from nodes
