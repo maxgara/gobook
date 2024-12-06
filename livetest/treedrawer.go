@@ -22,7 +22,6 @@ func (nw *NodeWriter) String() string {
 		pipetr := make([]bool, 25) // pipetr[i] == 0 if no background pipe at offset i.
 		treestr(q, &buf, 0, pipetr)
 	}
-
 	return buf.String()
 }
 

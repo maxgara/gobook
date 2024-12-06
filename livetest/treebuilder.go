@@ -42,3 +42,4 @@ func (nw *NodeWriter) Write(id string, val string, chl []string) {
 		parent.chl = append(parent.chl, &nn)
 	}
 }
+func (nw *NodeWriter) WriteAll(id string, val string)

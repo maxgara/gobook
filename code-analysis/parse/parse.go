@@ -8,12 +8,14 @@
 // using a single regex string.
 // Future: There is also potential for a live extraction viewer application to see extraction results in real time,
 // as well as a generating command to create optimized static structures and extractions from the dynamic parse tree.
-package parse
+package main
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	live "maxgara-code.com/workspace/livetest"
 )
 
 const MAXMATCH = 100 //control maximum matches per parse
@@ -239,4 +241,27 @@ func (g ParseG) Temp(pattern string) ParseG {
 		newg = append(newg, p...)
 	}
 	return newg
+}
+
+// test Live package:
+const teststr = "this is my new testing parse node string. Check it out."
+
+func (q *ParseNd) WInit() {
+	*q = *NewParseNd(teststr)       //overwrite q
+	q.Parse(`(?<longwords>\w{4,})`) //example for user
+}
+func (q *ParseNd) WString() string {
+	return q.String()
+}
+func (q *ParseNd) WInput(input string) {
+	q.Parse(input)
+}
+
+func test() {
+	q := NewParseNd(teststr)
+	live.LivePrint(q)
+}
+
+func main() {
+	test()
 }

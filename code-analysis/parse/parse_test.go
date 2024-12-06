@@ -1,11 +1,12 @@
-package parse
+package main
 
 import (
 	"fmt"
 	"strings"
+	"testing"
 )
 
-const test = `func f1(c int, d float) {
+const tests = `func f1(c int, d float) {
 	var x int
 	var y int
 	var z int
@@ -25,7 +26,7 @@ const test = `func f1(c int, d float) {
 //		fmt.Print(words)
 //	}
 func ExampleParseNd_Parse() {
-	s := test
+	s := tests
 	x := NewParseNd(s)
 	_ = x.Parse("(?<myname>var .*)")
 	fmt.Println(x)
@@ -94,4 +95,7 @@ func ExampleParseNd_Name() {
 	fmt.Printf("full parse tree: %v\n", x)
 	fmt.Println("name: " + q.Name())
 	//Output:
+}
+func TestLive(t *testing.T) {
+	test()
 }

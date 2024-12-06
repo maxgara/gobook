@@ -41,6 +41,7 @@ func ExampleSimpleServer() {
 	w := NewNodeWriter()
 	WriteTreeToWriter(r, w)
 	SimpleServer(w.String())
+	//output: none
 }
 
 func WriteTreeToWriter(r *Node, w *NodeWriter) {

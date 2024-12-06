@@ -12,6 +12,7 @@ import (
 )
 
 const MODULEPATH = "maxgara-code.com"
+const BIN = "export PATH=$PATH:/Users/maxgara/Desktop/go-code/bin"
 
 func main() {
 
@@ -84,3 +85,5 @@ const templ = `<h1>{{.TotalCount}} issues</h1>
 {{end}}
 </table>
 `
+
+//colors:  cornflower-blue

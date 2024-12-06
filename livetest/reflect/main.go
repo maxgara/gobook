@@ -34,7 +34,7 @@ func ExampleTranslation() {
 }
 
 type Node struct {
-	id  int
+	id  string
 	val string
 	chl []*Node
 	par []*Node
@@ -129,7 +129,7 @@ func TranslateNodeR(node any, conf graphInputConfig, list []*Node) *Node {
 	if conf.ChildNodesIdx == -1 {
 		panic("bad configuration")
 	}
-	id := len(list)
+	id := fmt.Sprint(len(list))
 	q := Node{id: id}
 	var nodeReflectVal reflect.Value
 	// when this function is called recursively, after the first call the node is a reflect.Value.
