@@ -5,10 +5,6 @@ import (
 	"reflect"
 )
 
-func main() {
-	ExampleTranslation()
-}
-
 func ExampleTranslation() {
 	//example of an arbitrary linked list node type
 	type fakenode struct {
@@ -22,8 +18,9 @@ func ExampleTranslation() {
 	parent := fakenode{value: "alan gara", other: "I would have written this program in C", children: []*fakenode{&node}}
 	conf := *config(parent)
 	fmt.Println(conf)
-	nodes := []*Node{}
+	nodes := &([]*Node{})
 	realparent := TranslateNodeR(parent, conf, nodes)
+	fmt.Println(realparent)
 	fmt.Println(realparent.chl[0])
 	fmt.Println(realparent.chl[0].chl[0])
 	// Output:
@@ -32,19 +29,11 @@ func ExampleTranslation() {
 	// {id=2; name:child; info:I do not yet exist;  children=0}
 
 }
-
-type Node struct {
-	id  string
-	val string
-	chl []*Node
-	par []*Node
-}
-
 func (node *Node) String() string {
 	id := fmt.Sprint(node.id)
 	val := node.val
-	chl := fmt.Sprint(len(node.chl))
-	return fmt.Sprintf("{id=%v; %v children=%v}", id, val, chl)
+	chlct := fmt.Sprint(len(node.chl))
+	return fmt.Sprintf("{id=%v; %v children=%v}", id, val, chlct)
 }
 
 const (
@@ -89,6 +78,7 @@ func config(node any) *graphInputConfig {
 	} else if conf.FirstChildNodeIdx != -1 && conf.NextSiblingNodeIdx != -1 {
 		conf.scheme = FirstChildNextSiblingScheme
 	} else {
+		fmt.Println(conf)
 		panic("can't find matching scheme for config")
 	}
 	return &conf
@@ -122,14 +112,14 @@ var translated []string //track node values which have already been translated, 
 // if there are any cycles in the graph, they will be broken.
 // In this case, all nodes linked below node will still be translated and listed.
 // return value is the translation of the original node, as is list[0].
-func TranslateNodeR(node any, conf graphInputConfig, list []*Node) *Node {
+func TranslateNodeR(node any, conf graphInputConfig, list *[]*Node) *Node {
 	if conf.scheme != ChildSliceScheme {
 		panic("currently unsupported") //todo: support more schemes
 	}
 	if conf.ChildNodesIdx == -1 {
 		panic("bad configuration")
 	}
-	id := fmt.Sprint(len(list))
+	id := fmt.Sprint(len(*list))
 	q := Node{id: id}
 	var nodeReflectVal reflect.Value
 	// when this function is called recursively, after the first call the node is a reflect.Value.
@@ -147,10 +137,9 @@ func TranslateNodeR(node any, conf graphInputConfig, list []*Node) *Node {
 		vs := fmt.Sprintf("%v:%v; ", vl, vv) //value string
 		val += vs
 	}
-	fmt.Println(val)
 	q.val = val
 	translated = append(translated, val) //don't translate the same node again.
-	list = append(list, &q)              //allow the next index to be set correctly.
+	*list = append(*list, &q)            //allow the next index to be set correctly.
 	childslc := nodeReflectVal.Field(conf.ChildNodesIdx)
 	l := childslc.Len()
 	for i := 0; i < l; i++ {
@@ -158,7 +147,13 @@ func TranslateNodeR(node any, conf graphInputConfig, list []*Node) *Node {
 		newchild := TranslateNodeR(chelem, conf, list)
 		//link nodes
 		q.chl = append(q.chl, newchild)
-		newchild.par = append(newchild.par, &q)
 	}
 	return &q
+}
+
+func MakeTree(node any) []*Node {
+	conf := *config(node)
+	nodes := &([]*Node{})
+	TranslateNodeR(node, conf, nodes)
+	return *nodes
 }

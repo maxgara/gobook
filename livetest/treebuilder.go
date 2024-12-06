@@ -42,4 +42,26 @@ func (nw *NodeWriter) Write(id string, val string, chl []string) {
 		parent.chl = append(parent.chl, &nn)
 	}
 }
-func (nw *NodeWriter) WriteAll(id string, val string)
+
+// write a bunch of nodes at once.
+func (nw *NodeWriter) WriteAll(nodes []*Node) {
+	// *nw = *NewNodeWriter()
+	for _, node := range nodes {
+		// fmt.Println("writing another new node: %v\n", node)
+		nw.nodes[node.id] = node
+		for _, c := range node.chl {
+			nw.parentof[c.id] = node
+		}
+		if par, ok := nw.parentof[node.id]; ok {
+			par.AddChild(node)
+		}
+	}
+}
+func (q *Node) AddChild(node *Node) {
+	for _, c := range q.chl {
+		if c.id == node.id {
+			return
+		}
+	}
+	q.chl = append(q.chl, node)
+}
