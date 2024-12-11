@@ -1,3 +1,5 @@
+// basic color library with automatically expanding color palette.
+// colorset.new() takes the next color in the palette and creates a new one if necessary.
 package main
 
 import "fmt"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -80,4 +81,16 @@ func treestr(q *Node, w *strings.Builder, off int, pipetr []bool) {
 		w.WriteString(s)
 		treestr(q.chl[l-1], w, off+1, pipetr)
 	}
+}
+func (nw *NodeWriter) HTMLString() string {
+	s := nw.String()
+	arr := strings.Split(s, "\n")
+	s = ""
+	for _, line := range arr {
+		line = strings.ReplaceAll(line, " ", "&nbsp")
+		s += "<div>" + line + "</br></div>"
+	}
+	temp, _ := os.ReadFile("tree.tmpl")
+	s = fmt.Sprintf(string(temp), s)
+	return s
 }

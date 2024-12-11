@@ -1,3 +1,4 @@
+// temporary file for testing while in development
 package main
 
 import (
@@ -5,25 +6,35 @@ import (
 	"math/rand"
 )
 
+type exampleitem struct {
+	val string
+}
+
+func (ex *exampleitem) String() string {
+	return ex.val
+}
 func main() {
-	oldroot := treegen2()
-	// fmt.Println(oldroot)
-	nodes := MakeTree(*oldroot)
-	// fmt.Println()
-	nw := NewNodeWriter()
-	nw.WriteAll([]*Node(nodes))
-	// for _, n := range nodes {
-	// 	var chstrs []string
-	// 	for _, ch := range n.chl {
-	// 		chstrs = append(chstrs, ch.id)
-	// 	}
-	// 	nw.Write(n.id, n.val, chstrs)
+	// var strs string
+	// // for range 1 {
+	// oldroot := treegen2()
+	// nodes := MakeTree(*oldroot)
+	// nw := NewNodeWriter()
+	// nw.WriteAll([]*Node(nodes))
+	var ex = &exampleitem{"this\nis\na\ntest."}
+	c := NewCanvas("my_canvas")
+	c.NewItem("my_test", ex)
+	c.NewInputTextArea("testinput", func(s string) string { ex.val += "XXX"; return "ok function called." }, "my_test")
+	fmt.Printf("%#v", c)
+	// strs += nw.HTMLString()
+	// fmt.Println(s)
 	// }
-	fmt.Println(nw)
+	// fmt.Println(nw)
+	// fmt.Println(c.String())
+	CanvasServer(c)
 }
 
 type Vertex struct {
-	name             string    `NodeVal:"first_name"`
+	name             string    `NodeVal:"-"`
 	descendent_names []*Vertex `ChildNodes:"kids"`
 }
 

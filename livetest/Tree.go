@@ -1,3 +1,5 @@
+// This file contains the methods to build a node tree from a root node, based on struct tags.
+// The function which will be exposed in the API will be MakeTree.
 package main
 
 import (
@@ -43,7 +45,7 @@ const (
 )
 
 // supported tags are:
-// NodeVal:"<NodeValLabel>"
+// NodeVal:"<NodeValLabel>" ; if NodeValLbel=="-", then the label part will be omitted during rendering
 // ChildNodes:"<ChildNodesLabel>" ; Label ignored
 // FirstChildNode: "<FCLabel>" ; Label ignored
 // NextSiblingNode: "<NSLabel>" ; Label ignored
@@ -130,18 +132,30 @@ func TranslateNodeR(node any, conf graphInputConfig, list *[]*Node) *Node {
 	} else {
 		nodeReflectVal = reflect.ValueOf(node)
 	}
+	//create a value string based on the specified config. maybe this should be less confusing.
 	var val string //all values (NodeVal tagged fields) formatted and combined, with labels.
+	sep := ";"
+	l := len(conf.NodeValIdxs)
 	for lidx, vidx := range conf.NodeValIdxs {
-		vl := conf.NodeValLabels[lidx]       //value label
-		vv := nodeReflectVal.Field(vidx)     //value value
-		vs := fmt.Sprintf("%v:%v; ", vl, vv) //value string
+		if lidx == l-1 {
+			sep = ""
+		}
+		vl := conf.NodeValLabels[lidx]   //value label
+		vv := nodeReflectVal.Field(vidx) //value value
+		var vs string                    //value string
+		if vl == "-" {
+			vs = fmt.Sprintf("%v%v", vv, sep)
+		} else {
+			vs = fmt.Sprintf("%v:%v%v", vl, vv, sep)
+		}
 		val += vs
 	}
+
 	q.val = val
 	translated = append(translated, val) //don't translate the same node again.
 	*list = append(*list, &q)            //allow the next index to be set correctly.
 	childslc := nodeReflectVal.Field(conf.ChildNodesIdx)
-	l := childslc.Len()
+	l = childslc.Len()
 	for i := 0; i < l; i++ {
 		chelem := childslc.Index(i).Elem()
 		newchild := TranslateNodeR(chelem, conf, list)
