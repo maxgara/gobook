@@ -1,0 +1,6 @@
+svg.tmpl
+basic.tmpl
+state.tmpl
+textarea.tmpl
+tree.tmpl
+tree2.tmpl

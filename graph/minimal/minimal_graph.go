@@ -1,13 +1,41 @@
-// create svg graph from data points read from stdin. minimal version, no frills.
-// reads data points as float64
+// Create SVG graphs of data.
+// Usage: data is read from stdin, with data points separated by newlines. Output is to stdout and is comprised of
+// HTML with embedded SVG graph(s).
+// data points can be one coordinate or two, separated by a whitespace character.
+// multiple data series can be displayed by separating the series with non-numerical text or an empty line.
+// additional empty lines between plots are ignored.
+// The following flags are supported between data series:
+//
+// -n 	New Chart		 By default curves are all plotted on the same chart. This starts a new chart
+//
+//	which is used for further data series.
+//
+// -p 	Parallel Plot 	Plot the next curve next to the previous ones on the same chart
+// -css [<css properties>]
+//
+// Each flag must be on its own line with nothing other than whitespace. -n overrides -p if both are set.
+// Rough Format:
+// [Title]
+// [Graph Label]
+// [Plot Label]
+// <data>
+//
+//	...	(more data)
+//	[-flag] or [labeltext] or [\n]
+//
+// [Graph Label]
+// [Plot Label]
+// <data> [data]
+//
+//	... (more data, new series)
 package main
 
 import (
+	"embed"
 	"fmt"
 	"io"
 	"math"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -26,6 +54,8 @@ const styles = `
 	</style>
 </head>
 `
+
+var pageTitle string
 
 // read lines of data, when hitting a non-data line check for flag -n indicating a new chart, otherwise add line to current chart
 func main() {
@@ -63,7 +93,7 @@ func (b *svg) Push(p point) {
 // initialize curve in box b
 func (b *svg) NewCurve() {
 	cc := len(b.Curves)
-	label := fmt.Sprintf("Plot %d", cc+1)
+	label := fmt.Sprintf("Plot %d", cc+1) //default naming
 	c := curve{Col: b.colors.new(), Label: label}
 	b.Curves = append(b.Curves, c)
 }
@@ -90,55 +120,121 @@ type point struct {
 func parse(data string) []svg {
 	var boxes []svg
 	var box = newsvg()
-	var idx int // index of point in curve
-	for _, l := range strings.Split(data, "\n") {
+	var pidx int // index of point in curve
+	var cidx int
+	var bidx int
+	var lidx int
+	var onData bool //true=currently reading data series; false=between data series
+	var newChart bool
+	var sideBySide bool
+	var labels []string
+	parseData := func(l string) {
 		t := linetype(l)
 		switch t {
-		//new curve plot in box
-		case EMPTY:
-			box.NewCurve()
-		// new box
-		case NEWCHARTFLAG:
-			boxes = append(boxes, box)
-			box = newsvg()
-		//add labels
-		case TEXT:
-			//box label
-			cc := len(box.Curves)
-			if cc == 0 {
-				box.Label = l
-				continue
-			}
-			//curve label
-			box.Curves[cc-1].Label = l
 		case DATA:
 			p, err := parsep(l)
 			if err != nil {
-				fmt.Printf("error on line \"%s\"\n", l)
-				continue
+				panic(fmt.Sprintf("error on line \"%s\"\n", l))
 			}
 			//add idx as x coord if missing
 			if math.IsNaN(p.X) {
-				p.X = float64(idx)
+				p.X = float64(pidx)
 			}
-
 			box.Push(p)
 			box.Xmin = min(p.X, box.Xmin)
 			box.Xmax = max(p.X, box.Xmax)
 			box.Ymin = min(p.Y, box.Ymin)
 			box.Ymax = max(p.Y, box.Ymax)
+			pidx++
+		default:
+			onData = false
+			lidx--
 		}
+	}
+	//call at beginning of new data series
+	applyFlags := func() {
+		if newChart {
+			boxes = append(boxes, box)
+			box = newsvg()
+			cidx = 0
+			bidx++
+		}
+		if !sideBySide {
+			pidx = 0
+		}
+		box.NewCurve() // order important here
+		cidx++
+		for _, lab := range labels {
+			if lab == "" {
+				continue
+			}
+			switch {
+			//page title case
+			case bidx == 0 && pageTitle == "":
+				pageTitle = lab
+			//box label case
+			case cidx == 1 && box.Label == "":
+				box.Label = lab
+				//curve label case
+			default:
+				cc := len(box.Curves)
+				c := &box.Curves[cc-1]
+				c.Label = lab
+			}
+		}
+		newChart = false
+		sideBySide = false
+		labels = []string{}
+	}
+	parseNonData := func(l string) {
+		t := linetype(l)
+		// new box
+		switch t {
+		case NEWCHARTFLAG:
+			//ignore newchartflag if current chart has only 1 curve containing 0 points.
+			if cc := len(box.Curves); len(box.Curves[cc-1].P) == 0 {
+				return
+			}
+			newChart = true
+		case TEXT:
+			//assign label to element
+			labels = append(labels, l)
+		case PARALLELFLAG:
+			sideBySide = true
+			newChart = false //overrides previous flag if set
+		case DATA:
+			onData = true
+			applyFlags()
+			parseData(l)
+		}
+	}
+
+	//main loop
+	lines := strings.Split(data, "\n")
+	lmax := len(lines)
+	for lidx < lmax {
+		l := lines[lidx]
+		if onData {
+			parseData(l)
+		} else {
+			parseNonData(l)
+		}
+		lidx++
 	}
 	boxes = append(boxes, box)
 	return boxes
 }
 
+//go:embed svg.tmpl
+var templates embed.FS
+
 func print(boxes []svg) {
-	templ, err := template.ParseFiles("svg.tmpl")
+	templ, err := template.ParseFS(templates, "svg.tmpl")
 	// templ, err := template.New("svg").Parse(tstr)
 	if err != nil {
 		fmt.Printf("err:%v\n", err)
 	}
+	fmt.Printf(`<h1 style="background-color: cornflowerblue;text-align: center;">%v</h1>`, pageTitle)
 	for _, b := range boxes {
 		//write svg to stdout
 		b.Xrange = b.Xmax - b.Xmin
@@ -154,24 +250,28 @@ func print(boxes []svg) {
 // types of per-line input
 const (
 	DATA int = iota
-	EMPTY
 	NEWCHARTFLAG
+	PARALLELFLAG
 	TEXT
 )
 
-// decide what type of input a given line read is. default is DATA for coordinates/datapoints
+// decide what type of input a given line read is. default is TEXT
 func linetype(s string) int {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return EMPTY
-	}
-	if s == "-n" {
-		return NEWCHARTFLAG
-	}
-	if m, _ := regexp.MatchString(`[^\d\.\-\s]`, s); m {
 		return TEXT
 	}
-	return DATA
+	s0 := s[0]
+	switch {
+	case s == "-n":
+		return NEWCHARTFLAG
+	case s == "-p":
+		return PARALLELFLAG
+	case (s0 >= '0' && s0 <= '9') || s0 == '-':
+		return DATA
+	default:
+		return TEXT
+	}
 }
 
 // parse coordinates for point p, returns p and number of coords parsed, or -1 for error

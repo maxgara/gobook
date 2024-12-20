@@ -16,12 +16,10 @@ type Fmap struct {
 	dest string              //id of item to re-write, or a flag
 
 }
-type canvasConfig []string
 
 // A Canvas object displays golang objects in a browser-viewable format, and maps input objects to functions
 // modifying these objects, or the Canvas itself. Behaviour is controlled by use of the Canvas.conf string.
-// settings are added to the string with format "<keypath>=<value>;" or "<keypath>=<value0>,<value1>..;"
-// literal semicolons and equals signs in a key value can be escaped with "\".
+
 type Canvas struct {
 	id      string          //name provided by Canvas caller
 	items   []*fmt.Stringer //go objects to be displayed on canvas
@@ -31,9 +29,7 @@ type Canvas struct {
 }
 
 func NewCanvas(id string) *Canvas {
-	//default conf.
-	conf0 := "itemConfs=;"
-	c := Canvas{id: id, conf: []string{conf0}}
+	c := Canvas{id: id}
 	return &c
 }
 
@@ -43,63 +39,10 @@ func (c *Canvas) NewItem(id string, obj fmt.Stringer) {
 	c.itemIds = append(c.itemIds, id)
 }
 
-// get all properties for a given key sub-path. ex. Props("people.max") = "name=max;height=6ft3"
-func (cc *canvasConfig) Props(path string) canvasConfig {
-	var props canvasConfig
-	for _, s := range *cc {
-		pair := strings.Split(s, "=")
-		key := pair[0]
-		val := pair[1]
-		if key == path {
-			panic("ERROR: Cannot get Props of a fullly qualified configuration setting path.")
-		}
-		if !strings.HasSuffix(val, ";") {
-			panic("illegal value format in property")
-		}
-		if key, ok := strings.CutPrefix(key, path); ok {
-			subp := key + "=" + val
-			props = append(props, subp)
-		}
-	}
-	return props
-}
-
-// read the value(s) for a given key path. eg Get("people.max.height") = {"6ft3"}
-func (cc *canvasConfig) Get(key string) []string {
-	for _, s := range *cc {
-		pair := strings.Split(s, "=")
-		k := pair[0]
-		v := pair[1]
-		var ok bool
-		if v, ok = strings.CutSuffix(v, ";"); !ok {
-			panic("illegal value format in property")
-		}
-		if k == key {
-			vals := strings.Split(v, ",")
-			return vals
-		}
-	}
-	return nil //no key found
-}
-
-// set configuration key to value. if key already exists, replace it.
-func (cc *canvasConfig) Set(key string, val string) {
-	prop := key + "=" + val + ";"
-	for idx, s := range *cc {
-		pair := strings.Split(s, "=")
-		k := pair[0]
-		if k == key {
-			(*cc)[idx] = prop //replace previous setting
-			return
-		}
-	}
-	*cc = append(*cc, prop) //create new setting
-}
-
-// Convert state into HTML
+// HTML String
 func (c *Canvas) String() string {
 	var itemstrs []string
-	for idx, _ := range c.items {
+	for idx := range c.items {
 		item := *(c.items[idx])
 		itemid := c.itemIds[idx]
 		div := webStringify(item, itemid, c)
@@ -108,7 +51,8 @@ func (c *Canvas) String() string {
 	return canvasStrsWrapper(itemstrs)
 }
 
-// get a webstring from item, either using item.String directly or with adjusted formatting.
+// get a "webstring" from item, either using item.String directly or with adjusted formatting.
+// also wrap the string in a div for tracking.
 func webStringify(item fmt.Stringer, itemid string, c *Canvas) string {
 	var itemstr string
 	// //check if obj does it's own web formatting
@@ -120,9 +64,13 @@ func webStringify(item fmt.Stringer, itemid string, c *Canvas) string {
 	div := itemDiv(itemid, itemstr)
 	return div
 }
+
+// put item in div
 func itemDiv(id string, s string) string {
 	return fmt.Sprintf("<div id=\"%s\">%s</div>", id, s)
 }
+
+// wrap items in divs into html template
 func canvasStrsWrapper(itemstrs []string) string {
 	fstr := `<html><head> <script src="https://unpkg.com/htmx.org@2.0.3"></script></head><body>%s</body></html>`
 	var s string
@@ -131,6 +79,8 @@ func canvasStrsWrapper(itemstrs []string) string {
 	}
 	return fmt.Sprintf(fstr, s)
 }
+
+// replace special characters in string with HTML equivalents
 func stringToHTML(s string) string {
 	s = strings.ReplaceAll(s, " ", "&nbsp")
 	s = strings.ReplaceAll(s, "\n", "</br>")
@@ -158,6 +108,7 @@ func (c *Canvas) NewInputTextArea(id string, f func(string) string, targetid str
 	c.ops = append(c.ops, Fmap{src: id, f: f, dest: targetid}) //register handler func
 }
 
+// apply input from user to relevant item, send back a string representation of that item's new state
 func (c *Canvas) Apply(id string, arg string) string {
 	for _, m := range c.ops {
 		if m.src == id {

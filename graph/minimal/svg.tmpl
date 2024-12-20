@@ -5,7 +5,7 @@
 			style="width:94%; height: 94%; padding: 3%; background: grey; border: coral solid"
 			xmlns="http://www.w3.org/2000/svg">
 			{{range .Curves}}
-			{{if .P}}<polyline stroke="{{.Col}}" fill="none" stroke-width="4.0"
+			{{if .P}}<polyline stroke="{{.Col}}" fill="none" stroke-width="0.5"
 				points="{{range .P}} {{.X}},{{.Y}}{{end}}">
 				{{end}}
 			</polyline>
@@ -15,7 +15,7 @@
 	<div> XMIN={{.Xmin}} YMIN={{.Ymin}} XMAX={{.Xmax}} YMAX={{.Ymax}} </div>
 	<div style="width: 500; text-align:left; margin: auto; background-color: gray;">
 		<br>
-		<b>Key</b>
+		<div style="text-align: center; display: block; border: black;"><b>Key</b></div>
 		{{range .Curves}}
 
 		{{if .P}} <div style="color:{{.Col}}">{{.Label}}</div> {{end}}

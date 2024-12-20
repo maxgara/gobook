@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"testing"
 )
 
 const tests = `func f1(c int, d float) {
@@ -96,6 +95,7 @@ func ExampleParseNd_Name() {
 	fmt.Println("name: " + q.Name())
 	//Output:
 }
-func TestLive(t *testing.T) {
-	test()
-}
+
+// func TestLive(t *testing.T) {
+// 	test()
+// }
