@@ -37,21 +37,33 @@ import (
 )
 
 type svg struct {
-	sset                   [][]float64 //data series
-	label                  string
+	sset    [][]float64 //data series
 	Xmin, Xmax, Ymin, Ymax float64 //bounds for SVG viewbox
 }
 
 type grid struct {
-	rows    []svg
-	columns []svg
+	rows    [][]svg
 }
 
 type parser struct {
+	r *io.Reader //stream to read from
+	first bool
 	done bool
+	last string //line parsed
+	type int //text, data, etc.
+	gridr int //grid rows
+	gridc int //grid columns
+	title string //has title
+	label string 
+	flags []string
+		data []float64
+
 }
 
-func (p *parser) parseLine(line string) {
+//parse a section of input
+//returns false when parsing is complete, either due to error or end of input
+func (p *parser) parse() bool{
+
 
 }
 
