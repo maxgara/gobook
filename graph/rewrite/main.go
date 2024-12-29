@@ -46,21 +46,23 @@ type svg struct {
 	Xmin, Xmax, Ymin, Ymax float64     //bounds for SVG viewbox
 }
 
-const (
-	NEWCHART = 0b1 << iota
-	PARALLEL
-)
+// data types
 const (
 	DATA = iota
 	TEXT
 	FLAGS
 )
 
+// flags
+const (
+	NEWCHART = 0b1 << iota
+	PARALLEL
+)
+
 type parser struct {
 	r         io.Reader //input to read from
-	isdata    bool
-	isflag    bool
-	dcols     int // # of data columns
+	t         int       //type of input processed
+	dcols     int       // # of data columns
 	pagetitle string
 	title     string //svg title
 	text      string
@@ -73,9 +75,8 @@ type parser struct {
 
 func (p *parser) String() string {
 	return fmt.Sprintf("Parser:\n"+
+		"t: %v\n"+
 		"data: %v\n"+
-		"Is Data: %v\n"+
-		"Is Flag: %v\n"+
 		"Data Columns: %d\n"+
 		"Page Title: %s\n"+
 		"Title: %s\n"+
@@ -83,9 +84,8 @@ func (p *parser) String() string {
 		"Flags: %d\n"+
 		"CSS: %s\n"+
 		"Error: %v",
+		p.t,
 		p.data,
-		p.isdata,
-		p.isflag,
 		p.dcols,
 		p.pagetitle,
 		p.title,
@@ -101,17 +101,17 @@ func (p *parser) parse() bool {
 	*p = parser{r: p.r, readback: p.readback} //reset p
 	s := bufio.NewScanner(p.r)
 	for {
-		var ok bool
+		var l []byte
 		if p.readback != nil {
-			ok = true
+			l = p.readback
+			p.readback = nil
 		} else {
-			ok = s.Scan()
+			if ok := s.Scan(); !ok {
+				p.err = io.EOF
+				return false
+			}
+			l = s.Bytes()
 		}
-		if !ok {
-			p.err = io.EOF
-			return false
-		}
-		l := s.Bytes()
 		if len(l) == 0 {
 			continue
 		}
@@ -120,21 +120,26 @@ func (p *parser) parse() bool {
 			continue
 		}
 		//handle data
-		p.isdata = true //default
+		isdata := true //default
 		_, err := strconv.ParseFloat(string(words[0]), 64)
 		if err != nil {
-			p.isdata = false
+			isdata = false
 		}
-		if p.isdata {
+		if isdata {
+			p.t = DATA
 			p.dcols = len(words)
 			p.data = parsedstream(s, p.dcols)
 			p.readback = s.Bytes() // capture last line read by parsedstream, for re-processing
 			return true
 		}
+		//handle text
 		if words[0][0] != '-' {
+			p.t = TEXT
 			p.text = strings.Trim(string(l), "\t ")
+			return true
 		}
 		//handle flags
+		p.t = FLAGS
 		for _, f := range words {
 			fs := string(f)
 			switch {
@@ -150,6 +155,7 @@ func (p *parser) parse() bool {
 				p.title = strings.TrimPrefix(fs, "-title=")
 			}
 		}
+		return true
 	}
 }
 
