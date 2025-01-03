@@ -60,9 +60,9 @@ const (
 )
 
 type parser struct {
-	r         io.Reader //input to read from
-	t         int       //type of input processed
-	dcols     int       // # of data columns
+	s         *bufio.Scanner
+	t         int //type of input processed
+	dcols     int // # of data columns
 	pagetitle string
 	title     string //svg title
 	text      string
@@ -71,6 +71,10 @@ type parser struct {
 	err       error
 	css       string
 	readback  []byte
+}
+
+func newParser(r io.Reader) parser {
+	return parser{s: bufio.NewScanner(r)}
 }
 
 func (p *parser) String() string {
@@ -98,19 +102,19 @@ func (p *parser) String() string {
 // parses a section of input into native golang types (slices, strings, etc.)
 // returns false when parsing is complete, either due to error or end of input
 func (p *parser) parse() bool {
-	*p = parser{r: p.r, readback: p.readback} //reset p
-	s := bufio.NewScanner(p.r)
+
+	*p = parser{s: p.s, readback: p.readback} //reset p
 	for {
 		var l []byte
 		if p.readback != nil {
 			l = p.readback
 			p.readback = nil
 		} else {
-			if ok := s.Scan(); !ok {
+			if ok := p.s.Scan(); !ok {
 				p.err = io.EOF
 				return false
 			}
-			l = s.Bytes()
+			l = p.s.Bytes()
 		}
 		if len(l) == 0 {
 			continue
@@ -128,8 +132,11 @@ func (p *parser) parse() bool {
 		if isdata {
 			p.t = DATA
 			p.dcols = len(words)
-			p.data = parsedstream(s, p.dcols)
-			p.readback = s.Bytes() // capture last line read by parsedstream, for re-processing
+			p.data, p.err = parsedstream(p.s, p.dcols)
+			if p.err != nil {
+				return false
+			}
+			p.readback = p.s.Bytes() // capture last line read by parsedstream, for re-processing
 			return true
 		}
 		//handle text
@@ -148,7 +155,7 @@ func (p *parser) parse() bool {
 			case fs == "-p":
 				p.flags |= PARALLEL
 			case strings.HasPrefix(fs, "-css="):
-				p.css = strings.TrimPrefix(fs, "-css")
+				p.css = strings.TrimPrefix(fs, "-css=")
 			case strings.HasPrefix(fs, "-pagetitle="):
 				p.pagetitle = strings.TrimPrefix(fs, "-pagetitle=")
 			case strings.HasPrefix(fs, "-title="):
@@ -160,7 +167,7 @@ func (p *parser) parse() bool {
 }
 
 // parse data stream into slices
-func parsedstream(s *bufio.Scanner, dcols int) [][]float64 {
+func parsedstream(s *bufio.Scanner, dcols int) ([][]float64, error) {
 	first := true
 	data := make([][]float64, dcols)
 	ok := true
@@ -168,7 +175,7 @@ func parsedstream(s *bufio.Scanner, dcols int) [][]float64 {
 		//scan thru data, first line is pre-scanned by parse()
 		if !first {
 			if ok = s.Scan(); !ok {
-				break
+				return data, io.EOF
 			}
 		}
 		first = false
@@ -176,13 +183,15 @@ func parsedstream(s *bufio.Scanner, dcols int) [][]float64 {
 		row := strings.Fields(l)
 		for i, xstr := range row {
 			x, err := strconv.ParseFloat(xstr, 64)
-			if err != nil {
-				return data
+			if err != nil && i == 0 {
+				return data, nil
+			}
+			if err != nil && i != 0 {
+				return data, fmt.Errorf("parsedstream: non-data in data series")
 			}
 			data[i] = append(data[i], x)
 		}
 	}
-	return data
 }
 
 // func (g *grid) String() string
@@ -211,7 +220,8 @@ func lwords(l []byte) [][]byte {
 }
 
 func main() {
-	p := parser{r: os.Stdin}
+	s := bufio.NewScanner(os.Stdin)
+	p := parser{s: s}
 	for {
 		ok := p.parse()
 		//handle parse results
