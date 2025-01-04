@@ -25,12 +25,14 @@ func TestParse1(t *testing.T) {
 }
 func TestParse2(t *testing.T) {
 	p := newParser(bytes.NewBuffer([]byte(data2)))
-	fmt.Println(p.parse())
-	fmt.Printf("%v\n\n", &p)
-	fmt.Println(p.parse())
-	fmt.Printf("%v\n\n", &p)
-	fmt.Println(p.parse())
-	fmt.Printf("%v\n\n", &p)
+	for {
+		ok := p.parse()
+		fmt.Println(ok)
+		fmt.Printf("%v\n\n", &p)
+		if !ok {
+			break
+		}
+	}
 }
 
 func TestParseDataStream(t *testing.T) {
@@ -93,12 +95,12 @@ var data2 = `1 10 100 50
 4 40 400 200
 5 50 500 250
 6 60 600 300
-7 70 x 350
+7 70 700 350
 8 80 800 400
 9 90 900 450
 -n
 -css=background-color: red
--pagetitle=testtitle
+-pagetitle=testpagetitle
 -title=testtitle
 6 60 600 300
 7 70 700 350

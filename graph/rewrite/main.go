@@ -102,8 +102,7 @@ func (p *parser) String() string {
 // parses a section of input into native golang types (slices, strings, etc.)
 // returns false when parsing is complete, either due to error or end of input
 func (p *parser) parse() bool {
-
-	*p = parser{s: p.s, readback: p.readback} //reset p
+	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
 	for {
 		var l []byte
 		if p.readback != nil {
@@ -147,20 +146,18 @@ func (p *parser) parse() bool {
 		}
 		//handle flags
 		p.t = FLAGS
-		for _, f := range words {
-			fs := string(f)
-			switch {
-			case fs == "-n":
-				p.flags |= NEWCHART
-			case fs == "-p":
-				p.flags |= PARALLEL
-			case strings.HasPrefix(fs, "-css="):
-				p.css = strings.TrimPrefix(fs, "-css=")
-			case strings.HasPrefix(fs, "-pagetitle="):
-				p.pagetitle = strings.TrimPrefix(fs, "-pagetitle=")
-			case strings.HasPrefix(fs, "-title="):
-				p.title = strings.TrimPrefix(fs, "-title=")
-			}
+		ls := string(l)
+		switch {
+		case ls == "-n":
+			p.flags |= NEWCHART
+		case ls == "-p":
+			p.flags |= PARALLEL
+		case strings.HasPrefix(ls, "-css="):
+			p.css = strings.TrimPrefix(ls, "-css=")
+		case strings.HasPrefix(ls, "-pagetitle="):
+			p.pagetitle = strings.TrimPrefix(ls, "-pagetitle=")
+		case strings.HasPrefix(ls, "-title="):
+			p.title = strings.TrimPrefix(ls, "-title=")
 		}
 		return true
 	}
