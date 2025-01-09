@@ -34,17 +34,17 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 )
 
-type svg struct {
-	sset                   [][]float64 //data series
-	Xmin, Xmax, Ymin, Ymax float64     //bounds for SVG viewbox
-}
+// type svg struct {
+// 	sset                   [][]float64 //data series
+// 	Xmin, Xmax, Ymin, Ymax float64     //bounds for SVG viewbox
+// }
 
 // data types
 const (
@@ -100,6 +100,8 @@ func (p *parser) String() string {
 }
 
 // parses a section of input into native golang types (slices, strings, etc.)
+// each call to parse reads until a break in the data series
+// sets flags, titles, and text section properties for p
 // returns false when parsing is complete, either due to error or end of input
 func (p *parser) parse() bool {
 	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
@@ -217,13 +219,22 @@ func lwords(l []byte) [][]byte {
 }
 
 func main() {
-	s := bufio.NewScanner(os.Stdin)
-	p := parser{s: s}
-	for {
-		ok := p.parse()
-		//handle parse results
-		if !ok {
-			break
-		}
-	}
+	// s := bufio.NewScanner(os.Stdin)
+	sflag := flag.Bool("multiseries", false, "multi-series mode")
+	flag.BoolFunc("s", "set multi-series mode", func(s string) error {
+		flag.Set("multiseries", "1")
+		return nil
+	})
+	flag.Parse()
+	fmt.Printf("flag: %v\n", *sflag)
+	// p := parser{s: s}
+	// for {
+	// 	ok := p.parse()
+	// 	if p.t == DATA {
+	// 	}
+	// 	//handle parse results
+	// 	if !ok {
+	// 		break
+	// 	}
+	// }
 }

@@ -1,0 +1,12 @@
+body {
+    font-family: monospace;
+    font-size: 16;
+    font-weight: 700;
+}
+
+.cell {
+    width: 500;
+    height: 500;
+    padding: 2%;
+    margin: auto;
+}
