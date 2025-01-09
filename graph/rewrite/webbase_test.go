@@ -7,16 +7,18 @@ import (
 )
 
 func TestWebBase(t *testing.T) {
-	f, err := os.OpenFile("temp.html", os.O_RDWR, 0)
+	f, err := os.OpenFile("temp.html", os.O_TRUNC|os.O_WRONLY, 0)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	w := newDoc()
-	g := newGrid(2)
+	w := newDoc("wbstyle.css")
+	g := w.startGrid(2)
 	g.add("hello")
 	g.add("world")
 	g.add("what's")
 	g.add("up")
 	w.render(f)
+	fmt.Println(*w)
+	w.render(os.Stdout)
 }

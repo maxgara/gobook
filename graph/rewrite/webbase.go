@@ -1,62 +1,74 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 )
 
-var style []byte //load from file (or embed?)
-
 // html doc
 type doc struct {
-	md string //markdown
+	style string
+	g     *grid
 }
 
-// simple grid to contain markdown elements
+// simple grid to contain markdown sub-elements using <div>s
 type grid struct {
 	md   [][]string //markdown
 	cols int        //setting for columns per row
 }
 
-func newGrid(cols int) *grid {
-	return &grid{cols: cols}
+func (d *doc) startGrid(cols int) *grid {
+	d.g = &grid{cols: cols}
+	return d.g
 }
-func newDoc() *doc {
-	var err error
-	style, err = os.ReadFile("wbstyle.css") //load styles
+
+// create new document loading css styles from file st
+func newDoc(st string) *doc {
+	style, err := os.ReadFile(st)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
-	return &doc{}
+	return &doc{style: string(style)}
 }
+
+// add markdown content cell to grid
 func (g *grid) add(el string) {
-	rowidx := len(g.md)
+	ridx := len(g.md)
 	//new row case
-	if rowidx == 0 || len(g.md[rowidx-1]) >= g.cols {
+	if ridx == 0 || len(g.md[ridx-1]) >= g.cols {
 		r := []string{el}
 		g.md = append(g.md, r)
 		return
 	}
 	//continue row case
-	g.md[rowidx-1] = append(g.md[rowidx-1], el)
+	g.md[ridx-1] = append(g.md[ridx-1], el)
 }
+
+// write grid to w
 func (g *grid) render(w io.Writer) {
 	for _, r := range g.md {
 		fmt.Fprint(w, rowstart)
 		for _, cell := range r {
-			fmt.Fprintf(w, `<div class="cell">%v</div>\n`, cell)
+			fmt.Fprintf(w, `<div class="cell">%s</div>`, cell)
 		}
 		fmt.Fprint(w, rowend)
 	}
 }
+func (g *grid) String() string {
+	buff := bytes.Buffer{}
+	g.render(&buff)
+	return buff.String()
+}
 func (d *doc) render(w io.Writer) {
-	fmt.Fprintf(w, docbase, style)
+	fmt.Fprintf(w, docbase, d.style, d.g)
 }
 
 const (
 	rowstart = `<div class="row">`
 	rowend   = `</div>`
-	docbase  = `<html><head>%v</head><body></body></html>`
+	docbase  = `<!DOCTYPE html><html><head><style>%s</style></head><body>%s</body></html>`
 )
