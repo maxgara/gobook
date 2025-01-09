@@ -1,5 +1,7 @@
 package main
 
+//run a command then serve a file whenever an HTTP GET is received from localhost:8001
+
 import (
 	"fmt"
 	"net/http"
@@ -12,7 +14,8 @@ func main() {
 	readfp := os.Args[2]
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("exec command [%v]\n", execfp)
-		err := exec.Command(execfp).Run()
+		cmd := exec.Command("/bin/zsh", execfp)
+		err := cmd.Run()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
