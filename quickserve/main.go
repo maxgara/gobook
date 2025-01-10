@@ -1,6 +1,8 @@
 package main
 
 //run a command then serve a file whenever an HTTP GET is received from localhost:8001
+//usage: quickserve <executable_path> <output_file_or_interface>
+//ex. quickserve ./myproc localhost:8000
 
 import (
 	"fmt"
@@ -18,35 +20,31 @@ const (
 )
 
 func main() {
-	execfp := os.Args[1]
-	readfp := os.Args[2]
+	procName := os.Args[1]
+	procRes := os.Args[2]
 	var mode = LOCAL_FILE //default
-	if strings.HasPrefix(readfp, "localhost") {
+	if strings.HasPrefix(procRes, "localhost") ||
+		strings.HasPrefix(procRes, "http://localhost") {
 		mode = LOCALHOST_NETCONN
 	}
-	fmt.Printf("mode %v\n", mode)
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("exec command [%v]\n", execfp)
-		cmd := exec.Command(execfp)
+		cmd := exec.Command(procName)
 		errp, err := cmd.StderrPipe()
 		if err != nil {
 			panic(fmt.Sprintf("exec stderr pipe connection:%v", err))
 		}
-
 		outp, err := cmd.StdoutPipe()
 		if err != nil {
 			panic(fmt.Sprintf("exec stdout pipe connection:%v", err))
 		}
-		fmt.Printf("starting...   ")
-		err = cmd.Start()
-		if err != nil {
-			fmt.Printf("exec err:%v\n", err)
-			panic("")
-		}
 		go io.Copy(os.Stdout, errp)
 		go io.Copy(os.Stdout, outp)
-		fmt.Println("success. pipes connected.")
-		b := read(mode, readfp)
+
+		err = cmd.Start()
+		if err != nil {
+			panic(fmt.Sprintf("exec err (proc=[%v]):%v\n", procName, err))
+		}
+		b := read(mode, procRes)
 		err = cmd.Process.Kill()
 		if err != nil {
 			panic("couldn't kill process.")
