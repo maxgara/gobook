@@ -16,19 +16,24 @@ func TestGen(t *testing.T) {
 	}
 	d := newDocBuilder(f)
 	d.startDoc()
-	d.startSVG("Test Title", [4]float64{0, 0, 1, 1})
-
-	d.endPoly()
+	d.writeTitle("Test Doc Title")
+	d.startGrid(3)
 	for range 20 {
-		x0 := rand.Float64()
-		x1 := rand.Float64()
-		y0 := rand.Float64()
-		y1 := rand.Float64()
-		d.startPoly(0.05)
-		d.vertex(x0, y0)
-		d.vertex(x1, y1)
-		d.endPoly()
+		d.startGridElem()
+		d.startSVG("Test SVG Title", [4]float64{0, 0, 1, 1})
+		for range 20 {
+			d.startPoly(0.05)
+			x0 := rand.Float64()
+			x1 := rand.Float64()
+			y0 := rand.Float64()
+			y1 := rand.Float64()
+			d.vertex(x0, y0)
+			d.vertex(x1, y1)
+			d.endPoly()
+		}
+		d.endSVG()
+		d.endGridElem()
 	}
-	d.endSVG()
+	d.endGrid()
 	d.endDoc()
 }

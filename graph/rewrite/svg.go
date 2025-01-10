@@ -20,7 +20,7 @@ var style string
 
 // document is made up of a title, and grids of text, svg, and svg-label elements
 type docBuilder struct {
-	gridsize [2]int //grid row, column count
+	gridcols int //grid column count
 	grididx  int
 	cidx     int //palette color index
 	w        io.Writer
@@ -50,13 +50,23 @@ func (d *docBuilder) writef(fstr string, args ...any) {
 func (d *docBuilder) writeTitle(s string) {
 	d.writef("<div id=title>%v</div>", s)
 }
-func (d *docBuilder) startGrid(x, y int) {
-	d.gridsize = [2]int{x, y}
+func (d *docBuilder) startGrid(cols int) {
+	d.gridcols = cols
 	d.grididx = 0
-	d.writef("<div class=grid>")
+	d.writef("<div class=grid><div class=grid-row>")
 }
 func (d *docBuilder) endGrid() {
-	d.writef("</div>")
+	d.writef("</div></div>")
+}
+func (d *docBuilder) startGridElem() {
+	if d.grididx != 0 && d.grididx%d.gridcols == 0 {
+		d.writef("</div><div class=grid-row>")
+	}
+	d.writef(`<div class="grid-elem">`)
+	d.grididx++
+}
+func (d *docBuilder) endGridElem() {
+	d.writef(`</div>`)
 }
 
 // start SVG element with given title and viewbox bounds
@@ -81,7 +91,6 @@ func (g *docBuilder) vertex(x, y float64) {
 const (
 	POLY_STROKE_WIDTH_DEFAULT = 0.5
 	SVGSTART_FSTR             = `<div class="svg-container"><div class="svg-title">%v</div><svg viewBox="%v %v %v %v" preserveAspectRatio="none"
-			style="width:94%%; height: 94%%; padding: 3%%; background: grey; border: coral solid"
 			xmlns="http://www.w3.org/2000/svg">`
 	SVGEND_FSTR    = `</svg></div>`
 	POLYSTART_FSTR = `<polyline stroke="#%x" fill="none" stroke-width="%v"

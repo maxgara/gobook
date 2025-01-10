@@ -1,0 +1,57 @@
+Texty app
+-text / rich text (.rtf) editor
+
+-regex+ support (select font, size, color, highlight, etc.
+
+-super find + replace (hide other lines, highlight, constantly apply, etc.
+
+-find + replace scripting supporting loops, conditionals and arguments with find + replace actions for easy manipulation of text in complex ways (ex. highlight errors red, warnings green, hide other messages in log file)
+
+-multithread async text processing, app will never freeze due to complex operations on large files. Instead parts of text which are still being processed are greyed out. Optimize to finish section of text user is looking at fast. (ex. replace \s\s with a single space repeatedly, this could be done by having a thread run for each f+r, only working on text sections that are done being processed by the earlier threads. 
+
+-branching undo/redo
+
+-.txty file format to save details like which lines are hidden, pinned find and replace actions, and optionally undo/redo tree
+
+-pics, tables, and other formatting enchantment support when using .txty files
+
+Progress goals:
+-basic golang skills
+-file i/o
+-app window
+-display file text in window
+-basic gui with scroll bar, page selector
+-implement load when scrolling to allow arbitrarily large file reads.
+-make text section loading async 
+-implement “gray out” format on unloaded text areas
+-implement text editing, saving
+-basic undo/redo
+-undo/redo tree, hotkeys + gui 
+****benchmark 1 - functional text editor***
+
+-upgrade to .rtf
+-simple find + replace
+-make f/r async
+-f/r greying out
+-find + replace all
+-regex mode f/r (RE2 regex or similar)
+****benchmark 2 - f/r implemented******
+
+-add standard editing features for .rtf
+-extend regex to cover .rtf better (font,color,etc)
+-add basic f/r scripting language
+Ex. 
+x=find(.*(\d{3}-\d{3}-\d{4}).*)
+x0-> xxx-xxx-xxxx
+b= find(redacted pii list:\n)
+b+=x0\n
+End Ex. This should redact phone numbers and place them in a redacted PII list. Eventually the language should also maybe support data structures, conditionals, loops, and global/static variables which persist. Probably also functions.
+
+125
+609
+
+Google flights project
+-run go script on server on a scheduled basis to get best flights from google 
+-send email from server (postfix)
+
+Code 1904
