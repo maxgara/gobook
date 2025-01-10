@@ -1,98 +1,93 @@
 package main
 
+//functions to build an SVG based HTML document
+
 import (
 	"fmt"
 	"io"
+	"os"
 )
 
+var pal = pal2
 var coolpal = []uint32{0xf5f5b0, 0x154734, 0xcfa3a8, 0x6a7ba2, 0xd6d6d6} // cool-tone color palette
+var pal0 = []uint32{0xfe938c, 0xe6b89c, 0xead2ac, 0x9cafb7, 0x4281a4}
+var pal1 = []uint32{0x40f99b, 0x20a4f3, 0x941c2f, 0x03191e, 0xfcab10}
+var pal2 = []uint32{0xf5f5b0, 0x154734, 0xcfa3a8, 0x6a7ba2, 0xd6d6d6, 0xfe938c, 0xe6b89c, 0xead2ac, 0x9cafb7, 0x4281a4, 0x40f99b, 0x20a4f3, 0x941c2f, 0x03191e, 0xfcab10}
 
-// SVG object methods facilitate drawing geometric objects in SVG format
-type SVGPoly struct {
-	fill   uint32
-	stroke uint32
-	width  float64
-	points [][2]float64
-}
-type SVG struct {
-	fill   uint32
-	stroke uint32
-	polys  []SVGPoly
-	bounds [4]float64
-	wp     SVGPoly //working poly (defined after polystart, before polyend)
-}
+const style_file = "wbstyle.css"
 
-func newSVG() *SVG {
-	return &SVG{}
-}
-func setStrokeRGB(g *SVG, c uint32) {
-	g.wp.stroke = c
-}
-func setFillRGP(g *SVG, c uint32) {
-	g.wp.fill = c
+var style string
+
+// document is made up of a title, and grids of text, svg, and svg-label elements
+type docBuilder struct {
+	gridsize [2]int //grid row, column count
+	grididx  int
+	cidx     int //palette color index
+	w        io.Writer
 }
 
-func (g *SVG) polyStart() {
-	cidx := len(g.polys)
-	if g.stroke == 0 {
-		g.stroke = coolpal[cidx] //default color scheme, may remove this later.
+func newDocBuilder(w io.Writer) *docBuilder {
+	b, err := os.ReadFile(style_file)
+	if err != nil {
+		panic(err)
 	}
-	g.wp = SVGPoly{fill: g.fill, stroke: g.stroke, width: POLY_STROKE_WIDTH_DEFAULT}
+	style = string(b)
+	return &docBuilder{w: w}
 }
-func (g *SVG) polyEnd() {
-	g.polys = append(g.polys, g.wp)
+func (d *docBuilder) startDoc() {
+	d.writef(STARTDOC_FSTR, style)
 }
-func (g *SVG) vertex(x, y float64) {
-	g.wp.points = append(g.wp.points, [2]float64{x, y})
-}
-func (g *SVG) vertexMulti(pts [][2]float64) {
-	g.wp.points = append(g.wp.points, pts...)
+func (d *docBuilder) endDoc() {
+	d.writef(ENDDOC_FSTR)
 }
 
-// generate svg markdown
-func (g *SVG) render(w io.Writer) {
-	//get bounds
-	var xmin, ymin, xmax, ymax float64
-	fp := g.polys[0].points[0] //first pt
-	xmin = fp[0]
-	xmax = fp[0]
-	ymin = fp[0]
-	ymax = fp[0]
-	for _, poly := range g.polys {
-		for _, p := range poly.points {
-			x := p[0]
-			y := p[1]
-			xmax = max(xmax, x)
-			xmin = min(xmin, x)
-			ymax = max(ymax, y)
-			ymin = min(ymin, y)
-		}
-	}
-	bounds := []float64{xmin, ymin, xmax - xmin, ymax - ymin}
-	s := fmt.Sprintf(svgstart, bounds[0], bounds[1], bounds[2], bounds[3])
-	for _, poly := range g.polys {
-		s += polymd(poly)
-	}
-	w.Write([]byte(s))
+// write a document portion to w
+func (d *docBuilder) writef(fstr string, args ...any) {
+	s := fmt.Sprintf(fstr, args...)
+	d.w.Write([]byte(s))
 }
 
-// generate polyline markdown
-func polymd(ply SVGPoly) string {
-	s := fmt.Sprintf(polystart, ply.stroke, ply.fill, ply.width)
-	for _, p := range ply.points {
-		s += fmt.Sprintf("%v,%v ", p[0], p[1])
-	}
-	return s + polyend
+func (d *docBuilder) writeTitle(s string) {
+	d.writef("<div id=title>%v</div>", s)
+}
+func (d *docBuilder) startGrid(x, y int) {
+	d.gridsize = [2]int{x, y}
+	d.grididx = 0
+	d.writef("<div class=grid>")
+}
+func (d *docBuilder) endGrid() {
+	d.writef("</div>")
+}
+
+// start SVG element with given title and viewbox bounds
+func (d *docBuilder) startSVG(title string, view [4]float64) {
+	d.writef(SVGSTART_FSTR, title, view[0], view[1], view[2], view[3])
+}
+func (d *docBuilder) endSVG() {
+	d.writef(SVGEND_FSTR)
+}
+func (g *docBuilder) startPoly(width float64) {
+	stroke := pal[g.cidx]
+	g.cidx = (g.cidx + 1) % len(pal)
+	g.writef(POLYSTART_FSTR, stroke, width)
+}
+func (g *docBuilder) endPoly() {
+	g.writef(POLYEND_FSTR)
+}
+func (g *docBuilder) vertex(x, y float64) {
+	g.writef("%v,%v ", x, y)
 }
 
 const (
 	POLY_STROKE_WIDTH_DEFAULT = 0.5
-	svgstart                  = `<svg viewBox="%v %v %v %v" preserveAspectRatio="none"
+	SVGSTART_FSTR             = `<div class="svg-container"><div class="svg-title">%v</div><svg viewBox="%v %v %v %v" preserveAspectRatio="none"
 			style="width:94%%; height: 94%%; padding: 3%%; background: grey; border: coral solid"
 			xmlns="http://www.w3.org/2000/svg">`
-	svgend    = `</svg>` //FIX THIS
-	polystart = `<polyline stroke="#%d" fill="%d" stroke-width="%v"
+	SVGEND_FSTR    = `</svg></div>`
+	POLYSTART_FSTR = `<polyline stroke="#%x" fill="none" stroke-width="%v"
 				points="`
-	polyend = `">
+	POLYEND_FSTR = `">
 			</polyline>`
+	STARTDOC_FSTR = "<!DOCTYPE HTML><html><head><style>%v</style></head>"
+	ENDDOC_FSTR   = "</body></html>"
 )
