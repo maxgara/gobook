@@ -27,7 +27,22 @@ func main() {
 		strings.HasPrefix(procRes, "http://localhost") {
 		mode = LOCALHOST_NETCONN
 	}
+	done := make(chan *exec.Cmd)
+	killLastProc := func() {
+
+		var c *exec.Cmd
+		c = <-done
+		err := c.Process.Kill()
+		if err != nil {
+			panic("couldn't kill process.")
+		}
+	}
+	var first = true
 	handler := func(w http.ResponseWriter, r *http.Request) {
+		if !first {
+			killLastProc()
+		}
+		first = false
 		cmd := exec.Command(procName)
 		errp, err := cmd.StderrPipe()
 		if err != nil {
@@ -45,10 +60,7 @@ func main() {
 			panic(fmt.Sprintf("exec err (proc=[%v]):%v\n", procName, err))
 		}
 		b := read(mode, procRes)
-		err = cmd.Process.Kill()
-		if err != nil {
-			panic("couldn't kill process.")
-		}
+		done <- cmd
 		_, err = w.Write(b)
 		if err != nil {
 			panic("couldn't write to testserver client")
