@@ -34,19 +34,21 @@ func newDocBuilder(w io.Writer) *docBuilder {
 	style = string(b)
 	return &docBuilder{w: w}
 }
+
+// write a document portion to w; internal use
+func (d *docBuilder) writef(fstr string, args ...any) {
+	s := fmt.Sprintf(fstr, args...)
+	d.w.Write([]byte(s))
+}
 func (d *docBuilder) startDoc() {
 	d.writef(STARTDOC_FSTR, style)
 }
 func (d *docBuilder) endDoc() {
 	d.writef(ENDDOC_FSTR)
 }
-
-// write a document portion to w
-func (d *docBuilder) writef(fstr string, args ...any) {
-	s := fmt.Sprintf(fstr, args...)
-	d.w.Write([]byte(s))
+func (d *docBuilder) writeText(s string) {
+	d.writef(`<div class="text-block">%v</div>`, s)
 }
-
 func (d *docBuilder) writeTitle(s string) {
 	d.writef("<div id=title>%v</div>", s)
 }

@@ -37,6 +37,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -60,7 +61,7 @@ const (
 )
 
 type parser struct {
-	s         *bufio.Scanner
+	s         string
 	t         int //type of input processed
 	dcols     int // # of data columns
 	pagetitle string
@@ -74,36 +75,133 @@ type parser struct {
 }
 
 func newParser(r io.Reader) parser {
-	return parser{s: bufio.NewScanner(r)}
-}
-
-func (p *parser) String() string {
-	return fmt.Sprintf("Parser:\n"+
-		"t: %v\n"+
-		"data: %v\n"+
-		"Data Columns: %d\n"+
-		"Page Title: %s\n"+
-		"Title: %s\n"+
-		"Text: %s\n"+
-		"Flags: %d\n"+
-		"CSS: %s\n"+
-		"Error: %v",
-		p.t,
-		p.data,
-		p.dcols,
-		p.pagetitle,
-		p.title,
-		p.text,
-		p.flags,
-		p.css,
-		p.err)
+	s, err := io.ReadAll(r)
+	if err != nil {
+		panic(err)
+	}
+	return parser{s: string(s)}
 }
 
 // parses a section of input into native golang types (slices, strings, etc.)
 // each call to parse reads until a break in the data series
 // sets flags, titles, and text section properties for p
 // returns false when parsing is complete, either due to error or end of input
+
 func (p *parser) parse() bool {
+	lines := strings.Split(p.s, "\n")
+	var lidx int
+	var textdone, datadone bool
+	var data [][]float64
+	var flagstrs []string
+	//loop over blocks
+	for {
+		l := strings.Trim(lines[lidx], " \t\r")
+		words := strings.Fields(l)
+		//loop over non-data
+		if !textdone {
+			if isdata(l) {
+				textdone = true
+				data = make([][]float64, len(words))
+				continue
+			}
+			if len(l) == 0 {
+				lidx++
+				continue
+			}
+			if l[0] == '-' {
+				flagstrs = append(flagstrs, words...)
+				lidx++
+			}
+			//handle text paragraphs
+			p.text += l
+			lidx++
+			continue
+		}
+		if !datadone {
+			// handle data
+			for i, w := range words {
+				d, err := strconv.ParseFloat(w, 64)
+				if err != nil {
+					datadone = true
+					break
+				}
+				data[i] = append(data[i], d)
+			}
+			continue
+		}
+		flags := flag.NewFlagSet("svgparseflags", flag.PanicOnError)
+		var fbits uint32
+		d1Flag := flags.Bool("d1", true, "one coordinate series parsing")
+		d2Flag := flags.Bool("d2", false, "two coordinate series parsing")
+		dxFlag := flags.Bool("dx", false, "shared x value")
+		gridFlag := flags.Int("grid", 0, "grid column count")
+
+		flags.Parse(flagstrs)
+		//handle result of parsing this block
+
+		encode(p.text, p.data, *d1Flag, *d2Flag, *dxFlag, *gridFlag, newDocBuilder(os.Stdout))
+	}
+}
+
+const (
+	D1_FLAG = 0b1 << iota
+	D2_FLAG
+	DX_FLAG
+)
+
+// convert parsed data to document format
+func encode(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder) {
+	b.writeText(text)
+	//assign pairs of data columns to contain x,y values of series based on flags
+	var spairs [][2][]float64
+	idxs := make([]float64, len(data)) //new data series for convenience
+	for i := range len(data) {
+		idxs[i] = float64(i)
+	}
+	switch {
+	case d2Flag && !dxFlag:
+		for i := 0; i < len(data); i += 2 {
+			spair := [2][]float64{data[i], data[i+1]}
+			spairs = append(spairs, spair)
+		}
+	case d1Flag:
+		for _, s := range data {
+			spair := [2][]float64{idxs, s}
+			spairs = append(spairs, spair)
+		}
+	case dxFlag:
+		for i := 1; i < len(data); i++ {
+			spair := [2][]float64{data[0], data[i]}
+			spairs = append(spairs, spair)
+		}
+	}
+
+	//get bounds
+	// var xmin = math.MaxFloat64
+	// var ymin = math.MaxFloat64
+	// var xmax = -math.MaxFloat64
+	// var ymax = -math.MaxFloat64
+	// b.startSVG("placeholder", 0, 0, 0, 0)
+
+}
+
+func isdata(s string) bool {
+	datachars := []byte("0123456789.E")
+	for _, c := range []byte(s) {
+		ok := true
+		for _, dc := range datachars {
+			if c == dc {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+func (p *parser) old_parse() bool {
 	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
 	for {
 		var l []byte
