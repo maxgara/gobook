@@ -37,7 +37,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -72,6 +72,7 @@ type parser struct {
 	err       error
 	css       string
 	readback  []byte
+	secs      []sectionVars
 }
 
 func newParser(r io.Reader) parser {
@@ -82,11 +83,16 @@ func newParser(r io.Reader) parser {
 	return parser{s: string(s)}
 }
 
-// parses a section of input into native golang types (slices, strings, etc.)
+func parseAll(p *parser) string {
+	for p.parse() {
+		//
+	}
+}
+
+// parses a section of input into a sectionVars struct
 // each call to parse reads until a break in the data series
 // sets flags, titles, and text section properties for p
 // returns false when parsing is complete, either due to error or end of input
-
 func (p *parser) parse() bool {
 	lines := strings.Split(p.s, "\n")
 	var lidx int
@@ -130,7 +136,6 @@ func (p *parser) parse() bool {
 			continue
 		}
 		flags := flag.NewFlagSet("svgparseflags", flag.PanicOnError)
-		var fbits uint32
 		d1Flag := flags.Bool("d1", true, "one coordinate series parsing")
 		d2Flag := flags.Bool("d2", false, "two coordinate series parsing")
 		dxFlag := flags.Bool("dx", false, "shared x value")
@@ -138,8 +143,8 @@ func (p *parser) parse() bool {
 
 		flags.Parse(flagstrs)
 		//handle result of parsing this block
-
-		encode(p.text, p.data, *d1Flag, *d2Flag, *dxFlag, *gridFlag, newDocBuilder(os.Stdout))
+		sec := sectionVars{text: p.text, data: p.data, d1Flag: *d1Flag, d2Flag: *d2Flag, dxFlag: *dxFlag, gridFlag: *gridFlag}
+		p.secs = append(p.secs, sec)
 	}
 }
 
@@ -149,8 +154,25 @@ const (
 	DX_FLAG
 )
 
+type sectionVars struct {
+	text     string
+	data     [][]float64
+	d1Flag   bool
+	d2Flag   bool
+	dxFlag   bool
+	gridFlag int
+	first    bool //is this the first
+	ingrid   bool //has gridFlag been set by any prior section
+}
+
 // convert parsed data to document format
-func encode(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder) {
+func encode(secs []sectionVars, b *docBuilder) {
+	first := true
+	for _, sec := range secs {
+		encodeSection(sec.text, sec.data, sec.d1Flag, sec.d2Flag, sec.dxFlag, sec.gridFlag, b, sec.first)
+	}
+}
+func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder, first bool) {
 	b.writeText(text)
 	//assign pairs of data columns to contain x,y values of series based on flags
 	var spairs [][2][]float64
@@ -164,24 +186,39 @@ func encode(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag
 			spair := [2][]float64{data[i], data[i+1]}
 			spairs = append(spairs, spair)
 		}
-	case d1Flag:
-		for _, s := range data {
-			spair := [2][]float64{idxs, s}
-			spairs = append(spairs, spair)
-		}
 	case dxFlag:
 		for i := 1; i < len(data); i++ {
 			spair := [2][]float64{data[0], data[i]}
 			spairs = append(spairs, spair)
 		}
+	case d1Flag:
+		for _, s := range data {
+			spair := [2][]float64{idxs, s}
+			spairs = append(spairs, spair)
+		}
 	}
-
+	var xmin = math.MaxFloat64
+	var ymin = math.MaxFloat64
+	var xmax = -math.MaxFloat64
+	var ymax = -math.MaxFloat64
 	//get bounds
-	// var xmin = math.MaxFloat64
-	// var ymin = math.MaxFloat64
-	// var xmax = -math.MaxFloat64
-	// var ymax = -math.MaxFloat64
-	// b.startSVG("placeholder", 0, 0, 0, 0)
+	for _, s := range spairs {
+		for _, x := range s[0] {
+			xmin = min(xmin, x)
+			xmax = max(xmax, x)
+		}
+		for _, x := range s[0] {
+			ymin = min(ymin, x)
+			ymax = max(ymax, x)
+		}
+	}
+	//draw
+	if first {
+		b.startDoc()
+	}
+	if gridFlag != 0 {
+		b.startGrid(gridFlag)
+	}
 
 }
 
@@ -201,6 +238,7 @@ func isdata(s string) bool {
 	}
 	return true
 }
+
 func (p *parser) old_parse() bool {
 	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
 	for {
@@ -291,8 +329,6 @@ func parsedstream(s *bufio.Scanner, dcols int) ([][]float64, error) {
 	}
 }
 
-// func (g *grid) String() string
-
 // print web page
 // func print()
 
@@ -325,6 +361,7 @@ func main() {
 	})
 	flag.Parse()
 	fmt.Printf("flag: %v\n", *sflag)
+
 	// p := parser{s: s}
 	// for {
 	// 	ok := p.parse()
