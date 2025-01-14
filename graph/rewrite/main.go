@@ -111,6 +111,17 @@ func endEncoding(b *docBuilder, gfset bool) {
 	b.endDoc()
 }
 
+// read specified line
+func (p *parser) readline(lidx int) (l string, words []string, ok bool) {
+	if lidx >= len(p.lines) {
+		return "", nil, false
+	}
+	l = strings.Trim(p.lines[lidx], " \t\r")
+	words = strings.Fields(l)
+	ok = true
+	return
+}
+
 // parses a section of input into a sectionVars struct
 // each call to parse reads until a break in the data series
 // sets flags, titles, and text section properties for p
@@ -119,50 +130,42 @@ func (p *parser) parse() bool {
 	if p.lines == nil {
 		p.lines = strings.Split(p.s, "\n")
 	}
-	lines := p.lines
 	var lidx int
-	var textdone, datadone bool
 	var data [][]float64
 	var flagstrs []string
 	var done bool
-	//loop over blocks
-	for {
-		if lidx >= len(lines) {
+	//parse non-data first
+	for !done {
+		l, words, ok := p.readline(lidx)
+		switch {
+		case !ok:
 			done = true
+		case len(l) == 0:
+			lidx++ //blank lines ignored in text mode
+		case isdata(words):
+			data = make([][]float64, len(words))
 			break
-		}
-		l := strings.Trim(lines[lidx], " \t\r")
-		words := strings.Fields(l)
-		//parse non-data first
-		if !textdone {
-			if len(l) == 0 {
-				lidx++
-				continue
-			}
-			if isdata(words) {
-				textdone = true
-				data = make([][]float64, len(words))
-				continue //do not increment lidx so that l can be processed as data
-			}
-			if l[0] == '-' {
-				flagstrs = append(flagstrs, words...)
-				lidx++
-				continue
-			}
+		case l[0] == '-':
+			flagstrs = append(flagstrs, words...) //add to flags list, continue
+			lidx++
+		default:
 			p.text += l
 			lidx++
 			continue
 		}
-		// then parse data
-		if !datadone {
-			if len(l) == 0 {
-				datadone = true
-				break
-			}
+	}
+	// then parse data
+	for !done {
+		l, words, ok := p.readline(lidx)
+		switch {
+		case !ok:
+			done = true
+		case len(l) == 0:
+			break //blank lines mean end of series in data mode
+		default:
 			for i, w := range words {
 				d, err := strconv.ParseFloat(w, 64)
 				if err != nil {
-					datadone = true
 					break
 				}
 				data[i] = append(data[i], d) //add ith data point to data series i
@@ -171,6 +174,7 @@ func (p *parser) parse() bool {
 			continue //next line
 		}
 	}
+
 	//parse flags
 	flags := flag.NewFlagSet("svgparseflags", flag.PanicOnError)
 	d1Flag := flags.Bool("d1", true, "one coordinate series parsing")
