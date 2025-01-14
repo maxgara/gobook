@@ -33,9 +33,7 @@
 package main
 
 import (
-	"bufio"
 	"flag"
-	"fmt"
 	"io"
 	"math"
 	"os"
@@ -144,7 +142,6 @@ func (p *parser) parse() bool {
 			if isdata(words) {
 				textdone = true
 				data = make([][]float64, len(words))
-				fmt.Printf("made slice len %d\n", len(words))
 				continue //do not increment lidx so that l can be processed as data
 			}
 			if l[0] == '-' {
@@ -158,6 +155,10 @@ func (p *parser) parse() bool {
 		}
 		// then parse data
 		if !datadone {
+			if len(l) == 0 {
+				datadone = true
+				break
+			}
 			for i, w := range words {
 				d, err := strconv.ParseFloat(w, 64)
 				if err != nil {
@@ -206,10 +207,13 @@ type sectionVars struct {
 // convert parsed data to document format
 func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder, first bool, ingrid bool) {
 	b.writeText(text)
+	if len(data) == 0 {
+		return
+	}
 	//assign pairs of data columns to contain x,y values of series based on flags
 	var spairs [][2][]float64
-	idxs := make([]float64, len(data)) //new data series for convenience
-	for i := range len(data) {
+	idxs := make([]float64, len(data[0])) //new index data series for convenience
+	for i := range len(data[0]) {
 		idxs[i] = float64(i)
 	}
 	switch {
@@ -291,120 +295,7 @@ func isdata(words []string) bool {
 	return true
 }
 
-// func (p *parser) old_parse() bool {
-// 	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
-// 	for {
-// 		var l []byte
-// 		if p.readback != nil {
-// 			l = p.readback
-// 			p.readback = nil
-// 		} else {
-// 			if ok := p.s.Scan(); !ok {
-// 				p.err = io.EOF
-// 				return false
-// 			}
-// 			l = p.s.Bytes()
-// 		}
-// 		if len(l) == 0 {
-// 			continue
-// 		}
-// 		words := lwords(l)
-// 		if len(words) == 0 {
-// 			continue
-// 		}
-// 		//handle data
-// 		isdata := true //default
-// 		_, err := strconv.ParseFloat(string(words[0]), 64)
-// 		if err != nil {
-// 			isdata = false
-// 		}
-// 		if isdata {
-// 			p.t = DATA
-// 			p.dcols = len(words)
-// 			p.data, p.err = parsedstream(p.s, p.dcols)
-// 			if p.err != nil {
-// 				return false
-// 			}
-// 			p.readback = p.s.Bytes() // capture last line read by parsedstream, for re-processing
-// 			return true
-// 		}
-// 		//handle text
-// 		if words[0][0] != '-' {
-// 			p.t = TEXT
-// 			p.text = strings.Trim(string(l), "\t ")
-// 			return true
-// 		}
-// 		//handle flags
-// 		p.t = FLAGS
-// 		ls := string(l)
-// 		switch {
-// 		case ls == "-n":
-// 			p.flags |= NEWCHART
-// 		case ls == "-p":
-// 			p.flags |= PARALLEL
-// 		case strings.HasPrefix(ls, "-css="):
-// 			p.css = strings.TrimPrefix(ls, "-css=")
-// 		case strings.HasPrefix(ls, "-pagetitle="):
-// 			p.pagetitle = strings.TrimPrefix(ls, "-pagetitle=")
-// 		case strings.HasPrefix(ls, "-title="):
-// 			p.title = strings.TrimPrefix(ls, "-title=")
-// 		}
-// 		return true
-// 	}
-// }
-
-// parse data stream into slices
-func parsedstream(s *bufio.Scanner, dcols int) ([][]float64, error) {
-	first := true
-	data := make([][]float64, dcols)
-	ok := true
-	for {
-		//scan thru data, first line is pre-scanned by parse()
-		if !first {
-			if ok = s.Scan(); !ok {
-				return data, io.EOF
-			}
-		}
-		first = false
-		l := s.Text()
-		row := strings.Fields(l)
-		for i, xstr := range row {
-			x, err := strconv.ParseFloat(xstr, 64)
-			if err != nil && i == 0 {
-				return data, nil
-			}
-			if err != nil && i != 0 {
-				return data, fmt.Errorf("parsedstream: non-data in data series")
-			}
-			data[i] = append(data[i], x)
-		}
-	}
-}
-
-// print web page
-// func print()
-
-// break line into words
-func lwords(l []byte) [][]byte {
-	var words [][]byte
-	after := -1
-	for i, b := range l {
-		if b != ' ' && b != '\t' {
-			continue
-		}
-		if i == after+1 {
-			after = i //drop whitespace at beginning of word
-		}
-		words = append(words, l[after+1:i])
-		after = i
-	}
-	if after+1 < len(l) {
-		words = append(words, l[after+1:])
-	}
-	return words
-}
-
 func main() {
-	test := "-grid=2\n10 10\n20 10\n"
+	test := "-grid=2\n10 10\n20 10\n30 40\n\n0 0\n 1 2\n0 0\n-0.31 -0.5"
 	parseAllAndRender(strings.NewReader(test))
 }
