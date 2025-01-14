@@ -78,6 +78,8 @@ func (d *docBuilder) startSVG(title string, view [4]float64) {
 func (d *docBuilder) endSVG() {
 	d.writef(SVGEND_FSTR)
 }
+
+// start a polyline with given stroke width
 func (g *docBuilder) startPoly(width float64) {
 	stroke := pal[g.cidx]
 	g.cidx = (g.cidx + 1) % len(pal)

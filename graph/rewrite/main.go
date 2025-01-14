@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -46,6 +47,8 @@ import (
 // 	sset                   [][]float64 //data series
 // 	Xmin, Xmax, Ymin, Ymax float64     //bounds for SVG viewbox
 // }
+
+const POLYWIDTH = 0.1 //polyline stroke width
 
 // data types
 const (
@@ -62,6 +65,7 @@ const (
 
 type parser struct {
 	s         string
+	lines     []string
 	t         int //type of input processed
 	dcols     int // # of data columns
 	pagetitle string
@@ -83,10 +87,30 @@ func newParser(r io.Reader) parser {
 	return parser{s: string(s)}
 }
 
-func parseAll(p *parser) string {
+func parseAllAndRender(r io.Reader) {
+	p := newParser(r)
 	for p.parse() {
-		//
+		//continue
 	}
+	first := true
+	var ingrid bool //do we need to close a grid?
+	b := newDocBuilder(os.Stdout)
+	for _, sec := range p.secs {
+		if sec.gridFlag != 0 {
+			ingrid = true
+		}
+		encodeSection(sec.text, sec.data, sec.d1Flag, sec.d2Flag, sec.dxFlag, sec.gridFlag, b, first, ingrid)
+		first = false
+	}
+	endEncoding(b, ingrid)
+}
+
+// close html sections
+func endEncoding(b *docBuilder, gfset bool) {
+	if gfset {
+		b.endGrid()
+	}
+	b.endDoc()
 }
 
 // parses a section of input into a sectionVars struct
@@ -94,58 +118,74 @@ func parseAll(p *parser) string {
 // sets flags, titles, and text section properties for p
 // returns false when parsing is complete, either due to error or end of input
 func (p *parser) parse() bool {
-	lines := strings.Split(p.s, "\n")
+	if p.lines == nil {
+		p.lines = strings.Split(p.s, "\n")
+	}
+	lines := p.lines
 	var lidx int
 	var textdone, datadone bool
 	var data [][]float64
 	var flagstrs []string
+	var done bool
 	//loop over blocks
 	for {
+		if lidx >= len(lines) {
+			done = true
+			break
+		}
 		l := strings.Trim(lines[lidx], " \t\r")
 		words := strings.Fields(l)
-		//loop over non-data
+		//parse non-data first
 		if !textdone {
-			if isdata(l) {
-				textdone = true
-				data = make([][]float64, len(words))
-				continue
-			}
 			if len(l) == 0 {
 				lidx++
 				continue
 			}
+			if isdata(words) {
+				textdone = true
+				data = make([][]float64, len(words))
+				fmt.Printf("made slice len %d\n", len(words))
+				continue //do not increment lidx so that l can be processed as data
+			}
 			if l[0] == '-' {
 				flagstrs = append(flagstrs, words...)
 				lidx++
+				continue
 			}
-			//handle text paragraphs
 			p.text += l
 			lidx++
 			continue
 		}
+		// then parse data
 		if !datadone {
-			// handle data
 			for i, w := range words {
 				d, err := strconv.ParseFloat(w, 64)
 				if err != nil {
 					datadone = true
 					break
 				}
-				data[i] = append(data[i], d)
+				data[i] = append(data[i], d) //add ith data point to data series i
 			}
-			continue
+			lidx++
+			continue //next line
 		}
-		flags := flag.NewFlagSet("svgparseflags", flag.PanicOnError)
-		d1Flag := flags.Bool("d1", true, "one coordinate series parsing")
-		d2Flag := flags.Bool("d2", false, "two coordinate series parsing")
-		dxFlag := flags.Bool("dx", false, "shared x value")
-		gridFlag := flags.Int("grid", 0, "grid column count")
-
-		flags.Parse(flagstrs)
-		//handle result of parsing this block
-		sec := sectionVars{text: p.text, data: p.data, d1Flag: *d1Flag, d2Flag: *d2Flag, dxFlag: *dxFlag, gridFlag: *gridFlag}
-		p.secs = append(p.secs, sec)
 	}
+	//parse flags
+	flags := flag.NewFlagSet("svgparseflags", flag.PanicOnError)
+	d1Flag := flags.Bool("d1", true, "one coordinate series parsing")
+	d2Flag := flags.Bool("d2", false, "two coordinate series parsing")
+	dxFlag := flags.Bool("dx", false, "shared x value")
+	gridFlag := flags.Int("grid", 0, "grid column count")
+
+	flags.Parse(flagstrs)
+	//handle result of parsing this block
+	sec := sectionVars{text: p.text, data: data, d1Flag: *d1Flag, d2Flag: *d2Flag, dxFlag: *dxFlag, gridFlag: *gridFlag}
+	p.secs = append(p.secs, sec)
+	p.lines = p.lines[lidx:]
+	if done {
+		return false
+	}
+	return true
 }
 
 const (
@@ -161,18 +201,10 @@ type sectionVars struct {
 	d2Flag   bool
 	dxFlag   bool
 	gridFlag int
-	first    bool //is this the first
-	ingrid   bool //has gridFlag been set by any prior section
 }
 
 // convert parsed data to document format
-func encode(secs []sectionVars, b *docBuilder) {
-	first := true
-	for _, sec := range secs {
-		encodeSection(sec.text, sec.data, sec.d1Flag, sec.d2Flag, sec.dxFlag, sec.gridFlag, b, sec.first)
-	}
-}
-func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder, first bool) {
+func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, gridFlag int, b *docBuilder, first bool, ingrid bool) {
 	b.writeText(text)
 	//assign pairs of data columns to contain x,y values of series based on flags
 	var spairs [][2][]float64
@@ -197,19 +229,19 @@ func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, g
 			spairs = append(spairs, spair)
 		}
 	}
+	//get bounds
 	var xmin = math.MaxFloat64
 	var ymin = math.MaxFloat64
 	var xmax = -math.MaxFloat64
 	var ymax = -math.MaxFloat64
-	//get bounds
 	for _, s := range spairs {
 		for _, x := range s[0] {
 			xmin = min(xmin, x)
 			xmax = max(xmax, x)
 		}
-		for _, x := range s[0] {
-			ymin = min(ymin, x)
-			ymax = max(ymax, x)
+		for _, y := range s[1] {
+			ymin = min(ymin, y)
+			ymax = max(ymax, y)
 		}
 	}
 	//draw
@@ -217,89 +249,109 @@ func encodeSection(text string, data [][]float64, d1Flag, d2Flag, dxFlag bool, g
 		b.startDoc()
 	}
 	if gridFlag != 0 {
-		b.startGrid(gridFlag)
+		b.startGrid(gridFlag) // closed by endEncoding func
 	}
-
+	if ingrid {
+		b.startGridElem()
+	}
+	bounds := [4]float64{xmin, ymin, xmax - xmin, ymax - ymin}
+	b.startSVG("temporary svg title", bounds)
+	for _, s := range spairs {
+		b.startPoly(0.1)
+		for i := range s[0] {
+			x := s[0][i]
+			y := s[1][i]
+			b.vertex(x, y)
+		}
+		b.endPoly()
+	}
+	b.endSVG()
+	if ingrid {
+		b.endGridElem()
+	}
 }
 
-func isdata(s string) bool {
-	datachars := []byte("0123456789.E")
-	for _, c := range []byte(s) {
-		ok := true
-		for _, dc := range datachars {
-			if c == dc {
-				ok = true
-				break
+func isdata(words []string) bool {
+	datachars := []byte("-0123456789.E")
+	for _, w := range words {
+		for _, c := range []byte(w) {
+			ok := false
+			for _, dc := range datachars {
+				if c == dc {
+					ok = true
+					break // next c
+				}
+			}
+			if !ok {
+				return false
 			}
 		}
-		if !ok {
-			return false
-		}
 	}
+
 	return true
 }
 
-func (p *parser) old_parse() bool {
-	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
-	for {
-		var l []byte
-		if p.readback != nil {
-			l = p.readback
-			p.readback = nil
-		} else {
-			if ok := p.s.Scan(); !ok {
-				p.err = io.EOF
-				return false
-			}
-			l = p.s.Bytes()
-		}
-		if len(l) == 0 {
-			continue
-		}
-		words := lwords(l)
-		if len(words) == 0 {
-			continue
-		}
-		//handle data
-		isdata := true //default
-		_, err := strconv.ParseFloat(string(words[0]), 64)
-		if err != nil {
-			isdata = false
-		}
-		if isdata {
-			p.t = DATA
-			p.dcols = len(words)
-			p.data, p.err = parsedstream(p.s, p.dcols)
-			if p.err != nil {
-				return false
-			}
-			p.readback = p.s.Bytes() // capture last line read by parsedstream, for re-processing
-			return true
-		}
-		//handle text
-		if words[0][0] != '-' {
-			p.t = TEXT
-			p.text = strings.Trim(string(l), "\t ")
-			return true
-		}
-		//handle flags
-		p.t = FLAGS
-		ls := string(l)
-		switch {
-		case ls == "-n":
-			p.flags |= NEWCHART
-		case ls == "-p":
-			p.flags |= PARALLEL
-		case strings.HasPrefix(ls, "-css="):
-			p.css = strings.TrimPrefix(ls, "-css=")
-		case strings.HasPrefix(ls, "-pagetitle="):
-			p.pagetitle = strings.TrimPrefix(ls, "-pagetitle=")
-		case strings.HasPrefix(ls, "-title="):
-			p.title = strings.TrimPrefix(ls, "-title=")
-		}
-		return true
-	}
-}
+// func (p *parser) old_parse() bool {
+// 	*p = parser{s: p.s, readback: p.readback, flags: p.flags, title: p.title, pagetitle: p.pagetitle, css: p.css} //reset p
+// 	for {
+// 		var l []byte
+// 		if p.readback != nil {
+// 			l = p.readback
+// 			p.readback = nil
+// 		} else {
+// 			if ok := p.s.Scan(); !ok {
+// 				p.err = io.EOF
+// 				return false
+// 			}
+// 			l = p.s.Bytes()
+// 		}
+// 		if len(l) == 0 {
+// 			continue
+// 		}
+// 		words := lwords(l)
+// 		if len(words) == 0 {
+// 			continue
+// 		}
+// 		//handle data
+// 		isdata := true //default
+// 		_, err := strconv.ParseFloat(string(words[0]), 64)
+// 		if err != nil {
+// 			isdata = false
+// 		}
+// 		if isdata {
+// 			p.t = DATA
+// 			p.dcols = len(words)
+// 			p.data, p.err = parsedstream(p.s, p.dcols)
+// 			if p.err != nil {
+// 				return false
+// 			}
+// 			p.readback = p.s.Bytes() // capture last line read by parsedstream, for re-processing
+// 			return true
+// 		}
+// 		//handle text
+// 		if words[0][0] != '-' {
+// 			p.t = TEXT
+// 			p.text = strings.Trim(string(l), "\t ")
+// 			return true
+// 		}
+// 		//handle flags
+// 		p.t = FLAGS
+// 		ls := string(l)
+// 		switch {
+// 		case ls == "-n":
+// 			p.flags |= NEWCHART
+// 		case ls == "-p":
+// 			p.flags |= PARALLEL
+// 		case strings.HasPrefix(ls, "-css="):
+// 			p.css = strings.TrimPrefix(ls, "-css=")
+// 		case strings.HasPrefix(ls, "-pagetitle="):
+// 			p.pagetitle = strings.TrimPrefix(ls, "-pagetitle=")
+// 		case strings.HasPrefix(ls, "-title="):
+// 			p.title = strings.TrimPrefix(ls, "-title=")
+// 		}
+// 		return true
+// 	}
+// }
 
 // parse data stream into slices
 func parsedstream(s *bufio.Scanner, dcols int) ([][]float64, error) {
@@ -353,23 +405,6 @@ func lwords(l []byte) [][]byte {
 }
 
 func main() {
-	// s := bufio.NewScanner(os.Stdin)
-	sflag := flag.Bool("multiseries", false, "multi-series mode")
-	flag.BoolFunc("s", "set multi-series mode", func(s string) error {
-		flag.Set("multiseries", "1")
-		return nil
-	})
-	flag.Parse()
-	fmt.Printf("flag: %v\n", *sflag)
-
-	// p := parser{s: s}
-	// for {
-	// 	ok := p.parse()
-	// 	if p.t == DATA {
-	// 	}
-	// 	//handle parse results
-	// 	if !ok {
-	// 		break
-	// 	}
-	// }
+	test := "-grid=2\n10 10\n20 10\n"
+	parseAllAndRender(strings.NewReader(test))
 }
