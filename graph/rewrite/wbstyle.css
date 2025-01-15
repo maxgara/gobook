@@ -1,17 +1,18 @@
 body {
     font-family: monospace;
-    font-size: 16;
+    font-size: 16px;
     font-weight: 700;
     overflow-y: scroll;
     overflow-x: scroll;
     white-space: nowrap;
-
+    text-align: center;
 }
 svg {
     width: 500px;
     height: 500px;
     padding: 3%;
     background: grey; 
+    box-sizing: border-box;
     border: coral solid;
 }
 .grid-row{
@@ -26,4 +27,28 @@ svg {
 } 
  .svg-container{
     text-align: center;
+    margin:5px
 } 
+.title {
+    font-size: 14px;
+}
+.pagetitle {
+    font-size: 20px;
+}
+.labels{
+    border: coral solid;
+    width: 500px; 
+    text-align:left;
+    margin: auto; 
+    background-color: gray;
+}
+.yaxislabel{
+    display: inline-block;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    margin: auto;
+    height: 500px;
+}
+.svg-axisalignment{
+    display: inline-block;
+}
