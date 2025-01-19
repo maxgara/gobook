@@ -1,0 +1,9 @@
+#don't include files without an extension (usually go executables)
+*   
+!*.* 
+!*/
+#general ignores
+*.html
+*.out
+#just in case:
+*id_rsa
