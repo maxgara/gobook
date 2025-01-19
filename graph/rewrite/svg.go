@@ -2,157 +2,143 @@ package main
 
 import (
 	"fmt"
+	"io"
 )
 
-// global consts + vars
-
-// colors for svg generation
-var pal = []uint32{0xf5f5b0, 0x154734, 0xcfa3a8, 0x6a7ba2, 0xd6d6d6, 0xfe938c, 0xe6b89c, 0xead2ac, 0x9cafb7, 0x4281a4, 0x40f99b, 0x20a4f3, 0x941c2f, 0x03191e, 0xfcab10}
-var style string
-
-const SVG_STROKEWIDTH = 0.1 //default stroke width
-const style_file = "wbstyle.css"
-
-// implementation of a general <div> as Content.
-type Div struct {
-	s string
-	n Node
-}
-
-// div uses default node rendering with no modifications
-func (d *Div) String() string {
-	return NodeStringC(&d.n, d.s+fmt.Sprint(d.n.chl))
-}
-func (d *Div) Node() *Node {
-	return &d.n
-}
-func (b *docBuilder) StartDiv() {
-	b.StartContentNode(&Div{}, Node{name: "div"})
-}
-func (b *docBuilder) EndDiv() {
-	b.EndNode()
-}
-
-// SVGBlock implements an SVG based graph involving multiple markup elements
-type SVGBlock struct {
-	title   string         //graph title
-	xl      string         //axis label x
-	yl      string         //axis label y
-	viewBox [4]float64     //xmin, ymin, width, height
-	series  [][2][]float64 //polyline, x|y, datapoint idx
-	colors  []uint32       //RGB
-	pidx    int            //color palette idx
-	labels  []string       //series data labels
-	n       Node
-}
-
-func (svg *SVGBlock) Node() *Node {
-	return &svg.n
-}
-
-// default Node definitions
-var (
-	defaultSVGNode  = Node{name: "div", class: "svg-container", attrs: [][2]string{{"preserveAspectRatio", "none"}, {"xmlns", "http://www.w3.org/2000/svg"}}}
-	defaultGridNode = Node{name: "div", class: "grid"}
-	defaultLegend   = Node{name: "div", class: "labels"}
+const (
+	REGULAR = iota
+	TEXTNODE
+	ROOT
 )
 
-// enter SVG Bloc
-func (b *docBuilder) StartSVGBlock(title, xl, yl string) {
-	newsvg := SVGBlock{n: defaultSVGNode}
-	newsvg.n.c = &newsvg
-	b.StartNode(&newsvg.n)
+type Node struct {
+	name  string
+	class string
+	attrs [][2]string
+	par   *Node
+	cdn   []*Node
+	text  string //only for text nodes
+	t     int
 }
-func (b *docBuilder) EndSVGBlock() {
+
+// write node encoding to w
+func (n *Node) Encode(w io.Writer) {
+	var astr string //attribute string
+	for _, at := range n.attrs {
+		k := at[0]
+		v := at[1]
+		astr += fmt.Sprintf(" %v=%v", k, v)
+	}
+
+	start := `<` + n.name + astr + `>`
+	end := `</` + n.name + `>`
+	w.Write([]byte(start))
+	if n.t == TEXTNODE {
+		w.Write([]byte(n.text))
+		w.Write([]byte(end))
+		return
+	}
+	for _, c := range n.cdn {
+		c.Encode(w)
+	}
+}
+
+type docBuilder struct {
+	loc  *Node
+	root *Node
+	w    io.Writer
+}
+
+func newDocBuilder(w io.Writer) *docBuilder {
+	root := &Node{name: "root", t: ROOT}
+	return &docBuilder{loc: root, w: w, root: root}
+}
+
+func (b *docBuilder) startNode(name string, class string, attrs [][2]string) {
+	n := &Node{name: name, class: class}
+	copy(n.attrs, attrs)
+	b.loc.cdn = append(b.loc.cdn, n)
+	n.par = b.loc
+	b.loc = n
+}
+
+func (b *docBuilder) endNode() {
 	b.loc = b.loc.par
 }
 
-// start new polyline with given stroke width and label
-func (b *docBuilder) startPoly(label string) {
-	c := b.loc.c.(*SVGBlock)
-	color := pal[c.pidx]
-	c.labels = append(c.labels, label)
-	c.colors = append(c.colors, color)
-	c.pidx++
-	c.pidx = c.pidx % len(pal)
-	c.series = append(c.series, [2][]float64{})
-	//write opening tag
-	// b.writef(`<polyline stroke="#%x" fill="none" stroke-width="%v" points="`, color, width)
-}
-func (b *docBuilder) vertex(x, y float64) {
-	c := b.loc.c.(*SVGBlock)
-	i := len(c.series) - 1
-	c.series[i][0] = append(c.series[i][0], x)
-	c.series[i][1] = append(c.series[i][1], x)
+// relevant Node Properties for functions below
+type NodeArgs struct {
+	func_id int
+	name    string
+	class   string
+	attrs   [][2]string
 }
 
-// write end tag, leave element
-func (b *docBuilder) endPoly() {
-	// b.writef("></polyline>")
-	b.EndNode()
-}
-func (svg SVGBlock) String() string {
-	boundstr := fmt.Sprintf("%v %v %v %v", svg.viewBox[0], svg.viewBox[1], svg.viewBox[2], svg.viewBox[3])
-	svg.n.attrs = append(svg.n.attrs, [2]string{"viewBox", boundstr})
-	var b buffer //content string buffer
-	for sidx, ser := range svg.series {
-		b.writef(`<polyline stroke="#%x" fill="none" stroke-width="%v" points="`, svg.colors[sidx], SVG_STROKEWIDTH)
-		for i := range ser[0] {
-			x := ser[0][i]
-			y := ser[1][i]
-			b.writef("%v,%v ", x, y)
-		}
-		b.writef(`"></polyline>`)
-	}
-	return NodeStringC(&svg.n, b.String())
-}
+/*func (d *docBuilder) writef(fstr string, args ...any) {
+d.writef("<div class=labels>")
+	d.writef(`<div id=label style="background-color: #%x">%v</div>`, pal[d.cidx], s)
+d.writef("</div>")
+d.writef(STARTDOC_FSTR, style)
+d.writef(ENDDOC_FSTR)
+d.writef(`<div class="text-block">%v</div>`, s)
+d.writef(`<div class="title">%v</div>`, s)
+d.writef(`<div class="pagetitle">%v</div>`, s)
+d.writef(`<div class=grid><div class="grid-row">`)
+d.writef("</div></div>")
+	d.writef(`</div><div class="grid-row">`)
+d.writef(`<div class="grid-elem">`)
+d.writef(`</div>`)
+d.writef(SVGSTART_FSTR, title, yaxis, view[0], view[1], view[2], view[3])
+d.writef(SVGEND_FSTR, d.xl)
+g.writef(POLYSTART_FSTR, stroke, width)
+g.writef(POLYEND_FSTR)
+g.writef("%v,%v ", x, y)*/
 
-type Grid struct {
-	rlen int
-}
-type TextBlock struct {
-	s string
-	n Node
-}
+// initialization constants
+var nodeinit = []NodeArgs{
+	NodeArgs{NODE_DOC, "body", "", nil},
+	NodeArgs{NODE_PAGETITLE, "div", "title", nil},
+	NodeArgs{NODE_GRID, "div", "grid", nil},
+	NodeArgs{NODE_GRIDROW, "div", "grid-row", nil},
+	NodeArgs{NODE_GRIDITEM, "div", "grid-elem", nil},
+	NodeArgs{NODE_SVG, "svg", "", [][2]string{[2]string{"preserveAspectRatio", "none"}, [2]string{"xmlns", "http://www.w3.org/2000/svg"}}},
+	NodeArgs{NODE_POLY, "polyline", "", nil},
+	NodeArgs{NODE_LABELAXISX, "div", "", nil},
+	NodeArgs{NODE_LABELAXISY, "div", "", nil},
+	NodeArgs{NODE_LEGEND, "div", "", nil},
+	NodeArgs{NODE_LEGENDITEM, "div", "", nil}}
 
-func (tb TextBlock) String() string {
-	return NodeString(&tb.n)
-}
+const (
+	NODE_DOC = iota
+	NODE_PAGETITLE
+	NODE_GRID
+	NODE_GRIDROW
+	NODE_GRIDITEM
+	NODE_SVG
+	NODE_POLY
+	NODE_LABELAXISX
+	NODE_LABELAXISY
+	NODE_LEGEND
+	NODE_LEGENDITEM
+)
 
-type Title struct {
-	s string
+func (b *docBuilder) startDoc() {
+	return //unnecessary
 }
-type PageTitle struct {
-	s string
+func (b *docBuilder) endDoc() {
+	b.root.Encode(b.w)
 }
-
-// NodeString but with specified inner HTML string
-func NodeStringC(n *Node, cs string) string {
-	var as string
-	for i := range n.attrs {
-		k := n.attrs[i][0]
-		v := n.attrs[i][1]
-		as += fmt.Sprintf(` "%v"="%v"`, k, v)
-	}
-	return fmt.Sprintf("<%v%v>%v</%[1]v>", n.name, as, cs)
+func (b *docBuilder) writePageTitle(s string) {
+	b.startNode("div", "pagetitle")
 }
-
-// default html node printing, no text content
-func NodeString(n *Node) string {
-	var as string
-	for i := range n.attrs {
-		k := n.attrs[i][0]
-		v := n.attrs[i][1]
-		as += fmt.Sprintf(` "%v"="%v"`, k, v)
-	}
-	var cs string
-	for _, cd := range n.chl {
-		cs += cd.String()
-	}
-	return fmt.Sprintf("<%v%v>%v</%[1]v>", n.name, as, cs)
-}
-
-// // svgFstr:=`<svg viewBox="%d %d %d %d" preserveAspectRatio="none"
-//                             xmlns="http://www.w3.org/2000/svg">
-//                             %v
-//                         </svg>`
+func (b *docBuilder) writeLabels()
+func (b *docBuilder) startSVG(title string, bounds [4]float64, xl string, yl string)
+func (b *docBuilder) endSVG()
+func (b *docBuilder) startGrid(colnum int)
+func (b *docBuilder) endGrid()
+func (b *docBuilder) startGridElem()
+func (b *docBuilder) endGridElem()
+func (b *docBuilder) startPoly(width float64, lab string)
+func (b *docBuilder) endPoly()
+func (b *docBuilder) vertex(x, y float64)
+func (b *docBuilder) writeText(s string)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"strings"
@@ -9,33 +10,26 @@ import (
 
 // docbuilder builds a document, navigating through elements as it works.
 type docBuilder struct {
-	// gridcols   int //grid column count
-	// grididx    int
-	// cidx       int //palette color index
-	// labelstack []string
-	// xl         string
-	// yl         string
-	w    io.Writer
-	loc  *Node
-	root *Node
+	w     io.Writer
+	idx   int //for new nodes
+	loc   *Node
+	atmap map[struct{string, int}]string
+	root  *Node
+}
+type attribute struct {
+	id  int //node idx
+	key string
+	h {int,}
 }
 
-// buffer for building node strings
-type buffer strings.Builder
-
-// convenience function - write string to temporary string builder buffer. used to generate node content strings.
-func (b *buffer) writef(fstr string, args ...any) {
-	(*strings.Builder)(b).WriteString(fmt.Sprintf(fstr, args...))
-}
-
-// basic element in doc, intended to be wrapped inside a Content element.
-// Once assigned, do not copy a node into a different content element.
+// basic element in doc, can be wrapped inside a Content element.
 type Node struct {
 	name  string
+	id    int //idx of node
 	class string
-	attrs [][2]string //kv pairs for html opening tag
-	chl   []*Node     //children
-	par   *Node       //parent
+	attrs *map[string]string //kv pairs for html opening tag
+	chl   []*Node            //children
+	par   *Node              //parent
 	c     Content
 	cstr  string //content string, for elements writing their own strings
 	ok    bool   //ok after initialization and before any copying process
