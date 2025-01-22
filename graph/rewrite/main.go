@@ -288,7 +288,7 @@ func encodeSVG(data [][]float64, h []string, f sectionFlags, b *docBuilder) {
 	//draw
 	b.startSVG(f.title, bounds, f.xl, f.yl)
 	for n, s := range spairs {
-		b.startPoly(0.1, h[n]) //header #n mapped to spair #n
+		b.startPoly(h[n]) //header #n mapped to spair #n
 		for i := range s[0] {
 			x := s[0][i]
 			y := s[1][i]
@@ -321,7 +321,7 @@ func isdata(words []string) bool {
 
 func main() {
 
-	// test := "-grid=2\njane bob\n10 10\n20 10\n30 40\n\nsammy ethyl\n0 0\n 1 2\n0 0\n-0.31 -0.5"
-	// parseAllAndRender(strings.NewReader(test))
-	parseAllAndRender(os.Stdin)
+	test := "-grid=2\njane bob\n10 10\n20 10\n30 40\n\nsammy ethyl\n0 0\n 1 2\n0 0\n-0.31 -0.5"
+	parseAllAndRender(strings.NewReader(test))
+	// pa	rseAllAndRender(os.Stdin)
 }
