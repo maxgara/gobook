@@ -1,0 +1,52 @@
+Starting out with the code in spinner.go:
+
+Normal recursive method fib(N)
+fibonacci 43 = 433494437
+elapsed: 1.455386333s
+fibonacci 45 = 1134903170
+elapsed: 3.801956708s
+conncurrent method 1: cfibn(n)
+fibonacci 43 = 433494437
+elapsed: 966.162292ms
+fibonacci 45 = 1134903170
+elapsed: 2.375015541s
+
+slight improvement so far, but less than a factor of 2. So far we have only allowed 2 goroutines to spawn from cfib(n). Lets try more.
+
+We are now creating spinner2.go.
+with current version of cfibn, when we set concurrency to 0: 
+
+elapsed: 3.813631666s
+fibonacci 45 = 1134903170
+fibonacci goroutines: 0
+
+almost exactly the same as fib(n). Now increasing fibDepthConcurrent:
+
+elapsed: 1.668503s
+fibonacci 45 = 1134903170
+fibonacci goroutines: 4
+
+elapsed: 1.144008708s
+fibonacci 45 = 1134903170
+fibonacci goroutines: 8
+
+elapsed: 856.375375ms
+fibonacci 45 = 1134903170
+fibonacci goroutines: 14
+
+elapsed: 798.312625ms
+fibonacci 45 = 1134903170
+fibonacci goroutines: 24
+
+elapsed: 748.686417ms
+fibonacci 45 = 1134903170
+fibonacci goroutines: 40
+
+elapsed: 819.281375ms
+fibonacci 45 = 1134903170
+fibonacci goroutines: 66
+
+we can now see where the goroutines start to catch up to us...
+
+
+
