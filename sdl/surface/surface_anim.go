@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -23,15 +24,14 @@ const (
 var tilt = math.Pi * 2 / 5 //second rotation, clockwise +x axis
 
 var t int
+var file *os.File
 
 func main() {
-	f, err := os.Create("cpuprofile")
-	if err != nil {
-		log.Fatal(err)
-	}
-	pprof.StartCPUProfile(f)
+	file, _ = os.Create("cpuprofile")
+	pprof.StartCPUProfile(file)
 	defer pprof.StopCPUProfile()
 
+	file, _ = os.Create("memprofile")
 	draw()
 }
 
@@ -104,8 +104,7 @@ func f2(x, y float64) float64 {
 func f1(x, y float64) float64 {
 	return x * y / 1000
 }
-func getSquares() [][]sdl.Point {
-	squares := make([][]sdl.Point, 0, cells*cells)
+func getSquares(arr *[]sdl.Point) {
 	for i := 0; i < cells; i++ {
 		for j := 0; j < cells; j++ {
 			ax, ay, aerr := corner(i+1, j)
@@ -120,12 +119,12 @@ func getSquares() [][]sdl.Point {
 			b := sdl.Point{int32(bx), int32(by)}
 			c := sdl.Point{int32(cx), int32(cy)}
 			d := sdl.Point{int32(dx), int32(dy)}
-			squares = append(squares, []sdl.Point{a, b, c, d})
+			*arr = append(*arr, a, b, c, d)
 		}
 	}
 	// fmt.Println(squares)
 	// fmt.Printf("max x:%f, maxy:%f", maxx, maxy)
-	return squares
+	// return squares
 }
 func draw() {
 
@@ -154,27 +153,28 @@ func draw() {
 	var done bool
 	var loopsPerSec float64
 	go func() {
-		<-time.After(time.Second * 10)
+		<-time.After(time.Second * 4)
 		dur = time.Since(start)
 		done = true
 	}()
+
 	var loops uint64
+	// squares := make([][]sdl.Point, 0, cells*cells)
+	arr := make([]sdl.Point, 0, cells*cells)
 	for {
 		loops++
+		getSquares(&arr)
 
-		squares := getSquares()
-		flat := make([]sdl.Point, 0, len(squares)*4)
 		renderer.SetDrawColor(0, 0, 0, 255)
 		renderer.Clear()
 
 		renderer.SetDrawColor(255, 255, 255, 255)
-		for _, sq := range squares {
-			flat = append(flat, sq...)
-		}
-		renderer.DrawLines(flat)
+		renderer.DrawLines(arr)
 		renderer.Present()
 
 		if done {
+			pprof.WriteHeapProfile(file)
+			runtime.GC() // get up-to-date statistics
 			loopsPerSec = float64(loops) / float64(dur.Seconds())
 			fmt.Printf("dur=%v; loops=%v; lps=%v\n", dur.Seconds(), loops, loopsPerSec)
 			return
@@ -184,7 +184,7 @@ func draw() {
 				return
 			}
 		}
-		// sdl.Delay(10)
+		// sdl.Delay(100)
 		tilt += (1.0 / 360.0)
 	}
 
