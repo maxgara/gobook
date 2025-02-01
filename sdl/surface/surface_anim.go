@@ -163,17 +163,15 @@ func draw() {
 		loops++
 
 		squares := getSquares()
-		renderer.SetDrawColor(0, 0, 0, 255)
-		renderer.Clear()
+		flat := make([]sdl.Point, 0, len(squares)*4)
 		renderer.SetDrawColor(0, 0, 0, 255)
 		renderer.Clear()
 
 		renderer.SetDrawColor(255, 255, 255, 255)
-		renderer.DrawPoint(150, 300)
-
 		for _, sq := range squares {
-			renderer.DrawLines(sq)
+			flat = append(flat, sq...)
 		}
+		renderer.DrawLines(flat)
 		renderer.Present()
 
 		if done {
