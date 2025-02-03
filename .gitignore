@@ -1,7 +1,8 @@
-#don't include files without an extension 
+#include only directories "*/" and files with extensions "*.*".
 *   
 !*.* 
 !*/
+
 #general ignores
 *.html
 *.out
