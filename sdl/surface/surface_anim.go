@@ -173,8 +173,8 @@ func draw() {
 		renderer.Present()
 
 		if done {
-			pprof.WriteHeapProfile(file)
 			runtime.GC() // get up-to-date statistics
+			pprof.WriteHeapProfile(file)
 			loopsPerSec = float64(loops) / float64(dur.Seconds())
 			fmt.Printf("dur=%v; loops=%v; lps=%v\n", dur.Seconds(), loops, loopsPerSec)
 			return
