@@ -31,7 +31,7 @@ var testdata = []string{"aab", "aba", "baa", "bba", "bab"}
 //		run(testdata)
 //	}
 
-func ProfileGetAnagrams(t *testing.T) {
-	anagrams := getAnagrams(testdata, true)
+func TestGetAnagrams(t *testing.T) {
+	anagrams := getAnagrams(testdata)
 	fmt.Println(anagrams)
 }
