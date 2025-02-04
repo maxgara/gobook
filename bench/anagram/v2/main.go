@@ -2,40 +2,43 @@ package main
 
 import (
 	"flag"
-	"io"
 	"log"
 	"os"
+	"runtime"
 	"runtime/pprof"
+
 	"strings"
 )
 
 var file = "../british-english-insane.txt"
-var out io.Writer
 
 func main() {
+	// debug.SetGCPercent(300)
+	// go func() {
+	// 	<-time.After(10 * time.Second)
+	// 	panic("time's up!")
+	// 	}()
 	//cpu/memory profiling
-	var pprofCPU = flag.Bool("profilecpu", false, "write Cpu profile")
-	var pprofMem = flag.Bool("profilememory", false, "write memory profile")
+	var pprofCPU = flag.Bool("cpu", false, "write Cpu profile")
+	var pprofMem = flag.Bool("mem", false, "write memory profile")
 	flag.Parse()
-	var stopCalls []func()
 	if *pprofCPU {
-		cpuProfile, _ := os.Create("cpuprofile") //create cpu profile log file
-		pprof.StartCPUProfile(cpuProfile)
-		stopCalls = append(stopCalls, func() {
+		profile, _ := os.Create("cpuprofile") //create cpu profile log file
+		pprof.StartCPUProfile(profile)
+		defer func() {
 			pprof.StopCPUProfile()
-		})
+		}()
 	}
 	if *pprofMem {
-		memProfile, _ := os.Create("memprofile") //create memory profile log file
-		stopCalls = append(stopCalls, func() {
-			pprof.WriteHeapProfile(memProfile)
-		})
+		profile, _ := os.Create("memprofile") //create cpu profile log file
+		defer func() {
+			runtime.GC()
+			pprof.WriteHeapProfile(profile)
+		}()
 	}
 	words := loaddata(file)
 	_ = getAnagrams(words)
-	for _, f := range stopCalls {
-		f()
-	}
+	// fmt.Println(out)
 }
 
 // create anagram groups from word list
@@ -90,15 +93,51 @@ func getKeys(words []string) []string {
 	for i := range words {
 		lwords[i] = strings.ToLower(words[i])
 	}
-	//make keys by bubble sort of letters
-	var keys []string
+	keys := make([]string, 0, len(words))
+	//****init key
+	// -
+	//** keygen
 	for _, w := range lwords {
-		wslc := []rune(w)
-		bsort(wslc)
-		keys = append(keys, string(wslc))
+		key := runefieldkey([]rune(w))
+		keys = append(keys, key)
 	}
 	return keys
 }
+
+func bytefieldkey(w []rune, key []byte) {
+	byte_occurances := key
+	for _, r := range w {
+		byte_occurances[r]++
+	}
+}
+
+func runefieldkey(w []rune) string {
+	occurances := make([]byte, 0xFF)
+	for _, r := range w {
+		occurances[r]++
+	}
+	return string(occurances)
+}
+
+func runeslicekey(w []rune) []rune {
+	var rsym []rune //runes found in word
+	var rn []rune   //count for runes in rsym
+	for _, r := range w {
+		var rfound bool
+		for i := range rsym {
+			if rsym[i] == r {
+				rfound = true
+				rn[i]++ //rune previously found case, increment existing count
+			}
+		}
+		if !rfound {
+			rsym = append(rsym, r)
+			rn = append(rn, 1)
+		}
+	}
+	return append(rsym, rn...)
+}
+
 func bsort(s []rune) {
 	wl := len(s)
 	if wl < 2 {
