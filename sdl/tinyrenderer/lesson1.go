@@ -133,7 +133,7 @@ func rotateVert(v vert, t float64) vert {
 func update() {
 	for i := range fileVerts {
 		v := fileVerts[i]
-		v = rotateVert(v, 0.1)
+		v = rotateVert(v, 0.01)
 		fileVerts[i] = v
 	}
 }
@@ -150,11 +150,11 @@ func draw(pixels []byte) {
 	// v2 := [2]int{0, height}
 	// fillTriangle(v0, v1, v2, pixels)
 
-	// vline := func(vertex0, vertex1 vert) {
-	// 	p0 := vtop(vertex0)
-	// 	p1 := vtop(vertex1)
-	// 	DrawLine(p0[0], p0[1], p1[0], p1[1], pixels)
-	// }
+	vline := func(vertex0, vertex1 vert) {
+		p0 := vtop(vertex0)
+		p1 := vtop(vertex1)
+		DrawLine(p0[0], p0[1], p1[0], p1[1], pixels)
+	}
 	fill3 := func(vt0, vt1, vt2 vert) {
 		p0, p1, p2 := vtop2(vt0), vtop2(vt1), vtop2(vt2)
 		fillTriangle(p0, p1, p2, pixels)
@@ -174,9 +174,19 @@ func draw(pixels []byte) {
 		// vline(v2, v0)
 		fill3(v0, v1, v2)
 	}
+
+	for _, f := range fileFaces {
+		vidx0, vidx1, vidx2 := f[0], f[1], f[2]
+		v0, v1, v2 := fileVerts[vidx0-1], fileVerts[vidx1-1], fileVerts[vidx2-1]
+		vline(v0, v1)
+		vline(v1, v2)
+		vline(v2, v0)
+		// fill3(v0, v1, v2)
+	}
 }
 func DrawLine(x0, y0, x1, y1 int, pixels []byte) {
-	var color uint32 = 0x0000ff00
+	// var color uint32 = 0x0000ff00
+	var color uint32 = 0xff000000
 	//x_i=x0 + i*(x1-x0)/N
 	if x1 < x0 {
 		x0, x1 = x1, x0
@@ -269,8 +279,6 @@ func setupAndDraw() {
 
 	var loops uint64
 	// squares := make([][]sdl.Point, 0, cells*cells)
-	var first bool
-	first = true
 	//draw loop
 	for {
 		loops++
@@ -282,7 +290,6 @@ func setupAndDraw() {
 		update()
 		draw(pix)
 		surf.Unlock()
-		first = !first
 		window.UpdateSurface()
 		renderer.Present()
 
@@ -295,6 +302,9 @@ func setupAndDraw() {
 			fmt.Printf("dur=%v; loops=%v; lps=%v\n", dur.Seconds(), loops, loopsPerSec)
 			return
 		}
+		// for event := sdl.PollEvent(); event == nil; {
+		// 	event = sdl.PollEvent()
+		// }
 		if event := sdl.PollEvent(); event != nil {
 			if event, ok := event.(*sdl.KeyboardEvent); ok {
 				fmt.Printf("event.Keysym.Scancode: %v %[1]c\n", event.Keysym.Scancode)
@@ -313,7 +323,7 @@ func setupAndDraw() {
 				return
 			}
 		}
-		sdl.Delay(100)
+		sdl.Delay(25)
 
 	}
 }
@@ -375,21 +385,22 @@ func bound(points [][2]int) Box {
 
 // fill in a triangle between pixels p{0,1,2}
 func fillTriangle(p0, p1, p2 [2]int, pix []byte) {
-	// u := vdiff(p1, p0)
-	// v := vdiff(p2, p0)
+	u := vdiff(p1, p0)
+	v := vdiff(p2, p0)
 	box := bound([][2]int{p0, p1, p2})
 	for i := box.xmin; i < box.xmax; i++ {
 		for j := box.ymin; j < box.ymax; j++ {
 			// fmt.Printf("looping: i=%v j=%v box=%v\n", i, j, box)
-			// X := [2]float64{float64(i - box.xmin), float64(j - box.ymin)}
-			// b := bary(u, v, X)
+			//offset X to be a vector w/r/t p0
+			X := [2]float64{float64(i - p0[0]), float64(j - p0[1])}
+			b := bary(u, v, X)
 			// fmt.Printf("\tbary= %v %v", b[0], b[1])
 			// mag := math.Hypot(b[0], b[1])
-			// mag := b[0] + b[1]
+			mag := b[0] + b[1]
 			//check if b is in triangle made up of vectors u,v
-			// if b[0] < 0 || b[1] < 0 || mag > 1 {
-			// 	continue
-			// }
+			if b[0] < 0 || b[1] < 0 || mag > 1 {
+				continue
+			}
 			// fmt.Printf("pass check, in triangle")
 			putpixel(i, j, 0x0000ff00, pix)
 		}
@@ -414,7 +425,12 @@ func bary(v, w, X [2]float64) [2]float64 {
 	y := X[1]
 	//a b   v    x
 	//c d * w  = y
+	if a*d-b*c == 0 {
+		// fmt.Printf("DETERMINANT=0\n\n\n")
+		return [2]float64{-1, -1}
+	}
 	det := 1 / (a*d - b*c)
+	//calculate coefficients for
 	cv := d*det*x - b*det*y
 	cw := -c*det*x + a*det*y
 	return [2]float64{cv, cw}
