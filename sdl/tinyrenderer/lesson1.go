@@ -26,7 +26,9 @@ var filebounds struct {
 }
 
 func main() {
-
+	vec1 := [3]float64{1, 0, 0}
+	vec2 := [3]float64{0, 1, 0}
+	fmt.Printf("%v X %v = %v\n", vec1, vec2, cross(vec1, vec2))
 	// b := bary(v, w, [2]float64{0.15, 0.1})
 
 	// fmt.Printf("b=<%f %f>\n\n\n", b[0], b[1])
@@ -408,6 +410,16 @@ func fillTriangle(p0, p1, p2 [2]int, pix []byte) {
 	// fmt.Println("done")
 }
 
+// vector cross product
+func cross(a, b [3]float64) [3]float64 {
+	a1, a2, a3 := a[0], a[1], a[2]
+	b1, b2, b3 := b[0], b[1], b[2]
+	x := a2*b3 - a3*b2
+	y := a3*b1 - a1*b3
+	z := a1*b2 - a2*b1
+	return [3]float64{x, y, z}
+}
+
 // vector subtract u - w
 func vdiff(u, w [2]int) [2]float64 {
 	x := float64(u[0] - w[0])
@@ -423,43 +435,15 @@ func bary(v, w, X [2]float64) [2]float64 {
 	d := w[1]
 	x := X[0]
 	y := X[1]
-	//a b   v    x
-	//c d * w  = y
+	//make sure determinant is ! = 0
 	if a*d-b*c == 0 {
-		// fmt.Printf("DETERMINANT=0\n\n\n")
 		return [2]float64{-1, -1}
 	}
 	det := 1 / (a*d - b*c)
-	//calculate coefficients for
+	//calculate coefficients for vectors v,w
 	cv := d*det*x - b*det*y
 	cw := -c*det*x + a*det*y
 	return [2]float64{cv, cw}
-	//x=c0v+c1w
-	//y=c2v+c3w
-
-	//v=c0x+c1y
-	//w=c2x+c3y
-	//r = c0/c2
-
-	//w*r = c0x + r*c3y
-
-	//w*r - v =  r*c3y-c1y
-	//s=(r*c3-c1)=((c0/c2)*c3-c1)
-
-	//****y= (-1/s)v+(r/s)w
-	//v=c0x+c1((-1/s)v+(r/s)w)
-	//x=(v-c1((-1/s)v+(r/s)w))/c0
-	//***x=(1/c0+c1/sc0)v+(r/sc0)w
-
-	//x=c0(vx*x + vy*y)+c1
-	//w=(x-c0(vx*x + vy*y))/c1
-	//x+y=c1v+c2w
-	//x+y=c1(vx*x + vy*y) + c2(wx*x+wy*y)
-	// V=vx*x + vy*y
-	// x=V-vy*y /vx
-	// y=W-vx*x / vw
-	//x=V-vy*(W-vx*x / vw) / vx
-	//-V=-x-vy*(W-vx*x / vw) / vx
 }
 
 /*
