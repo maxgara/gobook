@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand/v2"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -245,7 +246,6 @@ func putpixel(x, y int, color uint32, pixels []byte) {
 func setupAndDraw() {
 
 	var window *sdl.Window
-	var renderer *sdl.Renderer
 	var winTitle string = "TinyRenderer"
 	window, err := sdl.CreateWindow(winTitle, sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
 		int32(width), int32(height), sdl.WINDOW_SHOWN|sdl.WINDOW_ALWAYS_ON_TOP)
@@ -257,17 +257,13 @@ func setupAndDraw() {
 		log.Fatal(err)
 	}
 	//blank surface to blit before redrawing
-	blanksurf, err := sdl.CreateRGBSurface(5, 800, 800, 32, 0, 0, 0, 0)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// blanksurf, err := sdl.CreateRGBSurface(5, 800, 800, 32, 0, 0, 0, 0)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	defer window.Destroy()
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create renderer: %s\n", err)
-		os.Exit(1)
-	}
 	//benchmarking
 	var dur time.Duration
 	start := time.Now()
@@ -285,13 +281,16 @@ func setupAndDraw() {
 	//draw loop
 	for {
 		loops++
-		rect := sdl.Rect{0, 0, height, width}
-		blanksurf.Blit(&rect, surf, &rect)
+		// rect := sdl.Rect{0, 0, width, height}
+		// blanksurf.Blit(&rect, surf, &rect)
 		surf.Lock()
 		pix := surf.Pixels()
+		for i := range pix {
+			pix[i] = byte(rand.UintN(256))
+		}
 		// drawLines(arr, pix)
-		update()
-		draw(pix)
+		// update()
+		// draw(pix)
 		//for i := range width {
 		//	for j := range height {
 		//		putpixel(i, j, 0x00ff0000, pix)
@@ -299,7 +298,6 @@ func setupAndDraw() {
 		//}
 		surf.Unlock()
 		window.UpdateSurface()
-		renderer.Present()
 
 		if done {
 			loopsPerSec = float64(loops) / float64(dur.Seconds())
