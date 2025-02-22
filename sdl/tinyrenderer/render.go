@@ -18,7 +18,7 @@ const (
 	width, height = 800, 800 //window dims
 	filename      = "square.obj"
 	// filename = "african_head.obj"
-	delay = 25
+	delay = 5
 	yrotd = 0.01 // +y azis rotation per frame
 	RED   = 0x0000ff00
 	GREEN = 0x00ff0000
@@ -34,7 +34,8 @@ var wireframe bool
 var file *os.File
 var fileVerts []F3
 var fileFaces [][3]int
-var done bool //control program exit
+var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
+var done bool          //control program exit
 var loops uint64
 var dur time.Duration
 
@@ -121,7 +122,20 @@ func main() {
 	v2 := F3{1, 1, 0}
 	v3 := F3{1, 0, 1}
 	zval, err := zpixel(v1, v2, v3, [2]int{width / 20, height / 100})
-	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v", v1, v2, v3, zval, err)
+	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
+	//test cross
+	norm := cross(v2, v3)
+	fmt.Printf("cross of %v %v = %v", v2, v3, norm)
+	norm = vnormalize(norm)
+	fmt.Printf("after normalization: %v\n", norm)
+	//test dynamicNormalForFace
+	dn := DynamicNormalForFace(v1, v2, v3)
+	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
+	v3 = F3{1, 0, 0}
+	dn = DynamicNormalForFace(v1, v2, v3)
+	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
+	av := vavg(v1, v2, v3)
+	fmt.Printf("vavg = %v\n", av)
 	// fmt.Println(fileVerts)
 	// fmt.Println(fileFaces)
 	mainLoop()
@@ -166,8 +180,8 @@ func mainLoop() {
 }
 
 func draw(surf *sdl.Surface, blank *sdl.Surface) {
-	// rect := sdl.Rect{0, 0, width, height}
-	// blank.Blit(&rect, surf, &rect)
+	rect := sdl.Rect{0, 0, width, height}
+	blank.Blit(&rect, surf, &rect)
 	surf.Lock()
 	pix := surf.Pixels()
 
@@ -179,12 +193,37 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 
 }
 func drawFrame(pix []byte) {
-	for i := range width {
-		for j := range height {
-			putpixel(i, j, uint32(i*j), pix)
+	// for i := range width {
+	// 	for j := range height {
+	// 		putpixel(i, j, uint32(i*j), pix)
+	// 	}
+	// }
+	// DrawLine(0, 0, width, height, RED|BLUE|GREEN, pix)
+	//draw line between vertices
+	for _, f := range fileFaces {
+		globalcolor = RED | GREEN | BLUE
+		i1, i2, i3 := f[0], f[1], f[2]
+		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
+		vline(v1, v2, pix)
+		vline(v2, v3, pix)
+		vline(v3, v1, pix)
+		vn1 := DynamicNormalForFace(v1, v2, v3)
+		vn0 := vavg(v1, v2, v3)
+		globalcolor = RED
+		if vn1[2] < 0 {
+			globalcolor = BLUE
 		}
+		vline(vn0, vadd(vn0, vn1), pix)
 	}
-	DrawLine(0, 0, width, height, RED|BLUE|GREEN, pix)
+}
+
+var globalcolor uint32
+
+func vline(a, b F3, pixels []byte) {
+	va, vb := vtop(a), vtop(b)
+	p1x, p1y := va[0], va[1]
+	p2x, p2y := vb[0], vb[1]
+	DrawLine(p1x, p1y, p2x, p2y, globalcolor, pixels)
 }
 
 // get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
@@ -240,6 +279,76 @@ func zpixel(v0, v1, v2 F3, px [2]int) (z float64, err error) {
 		fmt.Printf("zpixeldebug: final zval = %v\n", z)
 	}
 	return z, nil
+}
+
+// scale vector
+func vscale(u F3, c float64) F3 {
+	return F3{u[0] * c, u[1] * c, u[2] * c}
+}
+
+// add vectors
+func vadd(u, v F3) F3 {
+	return F3{u[0] + v[0], u[1] + v[1], u[2] + v[2]}
+}
+
+// invert vector
+func vinv(v F3) F3 {
+	return F3{-v[0], -v[1], -v[2]}
+}
+
+// average of vectors
+func vavg(vs ...F3) F3 {
+	var avg F3
+	for _, v := range vs {
+		avg[0] += v[0]
+		avg[1] += v[1]
+		avg[2] += v[2]
+	}
+	div := float64(len(vs))
+	avg[0] = avg[0] / div
+	avg[1] = avg[1] / div
+	avg[2] = avg[2] / div
+	return avg
+}
+
+// dot product
+func dot(a, b F3) float64 {
+	x, y, z := a[0]*b[0], a[1]*b[1], a[2]*b[2]
+	return x + y + z
+}
+
+// vector cross product
+func cross(a, b F3) F3 {
+	a1, a2, a3 := a[0], a[1], a[2]
+	b1, b2, b3 := b[0], b[1], b[2]
+	x := a2*b3 - a3*b2
+	y := a3*b1 - a1*b3
+	z := a1*b2 - a2*b1
+	return F3{x, y, z}
+}
+
+// normalize vector
+func vnormalize(v F3) F3 {
+	div := math.Sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
+	for i := range v {
+		v[i] = v[i] / div
+	}
+	return v
+}
+
+// vector subtraction u-v
+func F3Diff(u, v F3) F3 {
+	x := u[0] - v[0]
+	y := u[1] - v[1]
+	z := u[2] - v[2]
+	return F3{x, y, z}
+}
+func DynamicNormalForFace(v1, v2, v3 F3) F3 {
+	u := F3Diff(v2, v1)
+	v := F3Diff(v3, v1)
+	c := cross(u, v)
+	cn := vnormalize(c)
+	return cn
 }
 
 // vertex to pixel conversion
