@@ -18,7 +18,7 @@ const (
 	width, height = 800, 800 //window dims
 	filename      = "square.obj"
 	// filename = "african_head.obj"
-	delay = 5
+	delay = 1
 	yrotd = 0.01 // +y azis rotation per frame
 	RED   = 0x0000ff00
 	GREEN = 0x00ff0000
@@ -226,6 +226,26 @@ func vline(a, b F3, pixels []byte) {
 	DrawLine(p1x, p1y, p2x, p2y, globalcolor, pixels)
 }
 
+// bounding box type: 0 = min, 1 = max
+type box struct {
+	x0 int
+	x1 int
+	y0 int
+	y1 int
+}
+
+// get pixel bounding box for vertices
+func pixelbox(vs []F3) {
+	b := box{}
+	b.x0, b.y0 = 100000, 100000
+	b.x1, b.y1 = -1, -1
+	for _, v := range vs {
+		p := vtop(v)
+		b.x0, b.y0 = min(b.x0, p[0]), min(b.y0, p[1])
+		b.x1, b.y1 = max(b.x1, p[0]), max(b.y1, p[1])
+	}
+}
+
 // get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
 type zpixelerror struct {
 	err string
@@ -397,7 +417,7 @@ func DrawLine(x0, y0, x1, y1 int, color uint32, pixels []byte) {
 }
 func putpixel(x, y int, color uint32, pixels []byte) {
 	if x >= width || y >= height || x < 0 || y < 0 {
-		fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
+		//fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
 		return
 	}
 	idx := 4 * (x + width*y)
