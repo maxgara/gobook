@@ -16,8 +16,12 @@ import (
 
 const (
 	width, height = 800, 800 //window dims
+	// filename      = "square.obj"
+	filename = "african_head.obj"
+	delay    = 25
 )
 
+var wireframe bool
 var file *os.File
 var fileVerts []vert
 var fileFaces []face
@@ -39,7 +43,7 @@ func main() {
 	// defer pprof.StopCPUProfile()
 
 	// file, _ = os.Create("memprofile")
-	fileVerts, fileFaces = loadobjfile("african_head.obj")
+	fileVerts, fileFaces = loadobjfile(filename)
 	// fmt.Println(fileVerts)
 	// fmt.Println("faces")
 	// fmt.Println(fileFaces)
@@ -142,6 +146,8 @@ func update() {
 
 // bgra
 func draw(pixels []byte) {
+	// fillztriangle(vert{0, 0, 1}, vert{1, 0, 1}, vert{1, 1, 1}, pixels)
+	// return
 	//simpler line drawing func for convenience
 	// line := func(x0, y0, x1, y1 int) {
 	// 	DrawLine(x0, y0, x1, y1, pixels)
@@ -162,28 +168,23 @@ func draw(pixels []byte) {
 		fillTriangle(p0, p1, p2, pixels)
 	}
 
-	// u := vert{0, 0, 0}
-	// v := vert{0.2, 0, 0}
-	// w := vert{0.1, 0.1, 0}
-	// U, V, W := vtop2(u), vtop2(v), vtop2(w)
-	// fillTriangle(U, V, W, pixels)
-
+	//draw triangle solid fill
 	for _, f := range fileFaces {
 		vidx0, vidx1, vidx2 := f[0], f[1], f[2]
 		v0, v1, v2 := fileVerts[vidx0-1], fileVerts[vidx1-1], fileVerts[vidx2-1]
-		// vline(v0, v1)
-		// vline(v1, v2)
-		// vline(v2, v0)
 		fill3(v0, v1, v2)
+		// fillztriangle(v0, v1, v2, pixels)
 	}
-
-	for _, f := range fileFaces {
-		vidx0, vidx1, vidx2 := f[0], f[1], f[2]
-		v0, v1, v2 := fileVerts[vidx0-1], fileVerts[vidx1-1], fileVerts[vidx2-1]
-		vline(v0, v1)
-		vline(v1, v2)
-		vline(v2, v0)
-		// fill3(v0, v1, v2)
+	//draw wireframe
+	if wireframe {
+		for _, f := range fileFaces {
+			vidx0, vidx1, vidx2 := f[0], f[1], f[2]
+			v0, v1, v2 := fileVerts[vidx0-1], fileVerts[vidx1-1], fileVerts[vidx2-1]
+			vline(v0, v1)
+			vline(v1, v2)
+			vline(v2, v0)
+			// fill3(v0, v1, v2)
+		}
 	}
 }
 func DrawLine(x0, y0, x1, y1 int, pixels []byte) {
@@ -280,7 +281,7 @@ func setupAndDraw() {
 	}()
 
 	var loops uint64
-	// squares := make([][]sdl.Point, 0, cells*cells)
+
 	//draw loop
 	for {
 		loops++
@@ -291,6 +292,11 @@ func setupAndDraw() {
 		// drawLines(arr, pix)
 		update()
 		draw(pix)
+		//for i := range width {
+		//	for j := range height {
+		//		putpixel(i, j, 0x00ff0000, pix)
+		//	}
+		//}
 		surf.Unlock()
 		window.UpdateSurface()
 		renderer.Present()
@@ -304,11 +310,13 @@ func setupAndDraw() {
 			fmt.Printf("dur=%v; loops=%v; lps=%v\n", dur.Seconds(), loops, loopsPerSec)
 			return
 		}
-		// for event := sdl.PollEvent(); event == nil; {
-		// 	event = sdl.PollEvent()
-		// }
+
 		if event := sdl.PollEvent(); event != nil {
 			if event, ok := event.(*sdl.KeyboardEvent); ok {
+				if event.State == 0 {
+					sdl.Delay(delay)
+					continue
+				}
 				fmt.Printf("event.Keysym.Scancode: %v %[1]c\n", event.Keysym.Scancode)
 				switch event.Keysym.Scancode {
 				case 20: //q
@@ -318,6 +326,8 @@ func setupAndDraw() {
 				case 81: //down
 				case 80: //left
 				case 79: //right
+				case 26: //'w'
+					wireframe = !wireframe
 				}
 
 			}
@@ -325,7 +335,7 @@ func setupAndDraw() {
 				return
 			}
 		}
-		sdl.Delay(25)
+		sdl.Delay(delay)
 
 	}
 }
@@ -385,11 +395,25 @@ func bound(points [][2]int) Box {
 	return Box{xmin: xmin, ymin: ymin, xmax: xmax, ymax: ymax}
 }
 
+// bound, vertex version
+func vbound(points []vert) Box {
+	xmax, ymax := -1000, -1000
+	xmin, ymin := 1000, 1000
+	for _, p := range points {
+		pp := vtop2(p)
+		xmin, ymin = min(xmin, pp[0]), min(ymin, pp[1])
+		xmax, ymax = max(xmax, pp[0]), max(ymax, pp[1])
+	}
+	return Box{xmin: xmin, ymin: ymin, xmax: xmax, ymax: ymax}
+}
+
 // fill in a triangle between pixels p{0,1,2}
 func fillTriangle(p0, p1, p2 [2]int, pix []byte) {
 	u := vdiff(p1, p0)
 	v := vdiff(p2, p0)
 	box := bound([][2]int{p0, p1, p2})
+	// fmt.Printf("box:%v\n", box)
+
 	for i := box.xmin; i < box.xmax; i++ {
 		for j := box.ymin; j < box.ymax; j++ {
 			// fmt.Printf("looping: i=%v j=%v box=%v\n", i, j, box)
@@ -405,6 +429,34 @@ func fillTriangle(p0, p1, p2 [2]int, pix []byte) {
 			}
 			// fmt.Printf("pass check, in triangle")
 			putpixel(i, j, 0x0000ff00, pix)
+		}
+	}
+	// fmt.Println("done")
+}
+
+// fill in a triangle with zbuffer drawing
+func fillztriangle(v0, v1, v2 vert, pix []byte) {
+	u := vvdiff(v1, v0)
+	v := vvdiff(v2, v0)
+	box := vbound([]vert{v0, v1, v2})
+	// fmt.Printf("box:%v\n", box)
+	for i := box.xmin; i < box.xmax; i++ {
+		for j := box.ymin; j < box.ymax; j++ {
+			X := [2]float64{float64(i), float64(j)}
+			// fmt.Printf("looping: i=%v j=%v box=%v\n", i, j, box)
+			b := bary([2]float64{u[0], u[1]}, [2]float64{v[0], v[1]}, X)
+			// fmt.Printf("\tbary= %v %v", b[0], b[1])
+			// mag := math.Hypot(b[0], b[1])
+			mag := b[0] + b[1]
+			//check if b is in triangle made up of vectors u,v
+			if b[0] < 0 || b[1] < 0 || mag > 1 {
+				continue
+			}
+			// fmt.Printf("pass check, in triangle")
+			z := zpixel(b[0], b[1], v0[2], u, v)
+			fmt.Printf("zpixel (%v,%v)=%v\n", i, j, z)
+			//color := ztocolor(z)
+			putpixel(i, j, 0xff000000, pix)
 		}
 	}
 	// fmt.Println("done")
@@ -427,7 +479,15 @@ func vdiff(u, w [2]int) [2]float64 {
 	return [2]float64{x, y}
 }
 
-// return representation of X in terms of basis vectors v,w
+// vector subract u - w; vertex version
+func vvdiff(u, w vert) vert {
+	x := u[0] - w[0]
+	y := u[1] - w[1]
+	z := u[2] - w[2]
+	return vert{x, y, z}
+}
+
+// return representation of X in terms of basis vectors v, w.
 func bary(v, w, X [2]float64) [2]float64 {
 	a := v[0]
 	b := w[0]
@@ -446,44 +506,15 @@ func bary(v, w, X [2]float64) [2]float64 {
 	return [2]float64{cv, cw}
 }
 
-/*
-generate an SVG image and write it to out. if ref==true then the svg element tags at end+beginning will be omitted,
-and only polygon tags will be returned
-*/
-// func svggen(out io.Writer) {
-// 	fmt.Fprintf(out, `
-// 		<svg xmlns='http://www.w3.org/2000/svg' `+
-// 		"style='stroke: grey; fill: white; stroke-width: 0.7' "+
-// 		"width='%d' height='%d'>", width, height)
-// 	var maxx float64
-// 	var maxy float64
-// 	for i := 0; i < cells; i++ {
-// 		for j := 0; j < cells; j++ {
-// 			ax, ay, astr, aerr := corner(i+1, j)
-// 			bx, by, _, berr := corner(i, j)
-// 			cx, cy, _, cerr := corner(i, j+1)
-// 			dx, dy, _, derr := corner(i+1, j+1)
-// 			//skip error polygons and continue
-// 			if aerr|berr|cerr|derr > 0 {
-// 				continue
-// 			}
+func ztocolor(z float64) uint32 {
+	mag := uint32(z * float64(255))
+	return 0x00ff0000 & (mag << 16)
+}
 
-// 			fmt.Fprintf(out, "<polygon points='%.5g,%.5g %.5g,%.5g %.5g,%.5g %.5g,%.5g' stroke='#%s'/>\n",
-// 				ax, ay, bx, by, cx, cy, dx, dy, astr)
-// 			var xs = []float64{ax, bx, cx, dx}
-// 			var ys = []float64{ay, by, cy, dy}
-// 			for k := range xs {
-// 				if xs[k] > maxx {
-// 					maxx = xs[k]
-// 				}
-// 				if ys[k] > maxy {
-// 					maxy = ys[k]
-// 				}
-// 			}
-// 		}
-
-// 	}
-// 	fmt.Fprintf(out, "</svg>")
-// 	_, _ = maxx, maxy
-// 	// fmt.Printf("max x:%f, maxy:%f", maxx, maxy)
-// }
+// return z coordinate based on barycentric coordinate coefficients c0, c1; z-offset z0, and vectors v, w (corresponding to c0,c1)
+func zpixel(c0, c1, z0 float64, v, w vert) (z float64) {
+	z = z0
+	z += c0 * v[2]
+	z += c1 * w[2]
+	return
+}
