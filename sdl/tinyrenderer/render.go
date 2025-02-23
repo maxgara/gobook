@@ -38,6 +38,8 @@ var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
 var done bool          //control program exit
 var loops uint64
 var dur time.Duration
+var greyval float64
+var zbuff []float64
 
 // load vertex from string
 func loadVertex(s string, verts *[]F3) {
@@ -100,6 +102,7 @@ func update() {
 		v = yrot(v, yrotd)
 		fileVerts[i] = v
 	}
+	greyval -= 0.001
 }
 func benchStart(dur *time.Duration) {
 	start := time.Now()
@@ -110,6 +113,7 @@ func benchStart(dur *time.Duration) {
 	}()
 }
 func main() {
+	zbuff = make([]float64, width*height)
 	loadobjfile(filename)
 	for _, v := range fileVerts {
 		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
@@ -117,11 +121,14 @@ func main() {
 	fmt.Printf("vtop(%v)=%v\n", F3{-1, -1, -1}, vtop(F3{-1, -1, -1}))
 	fmt.Printf("vtop(%v)=%v\n", F3{1, 1, 1}, vtop(F3{1, 1, 1}))
 	//test zpixel
-	zpixeldebug = true
+	//zpixeldebug = true
 	v1 := F3{0, 0, 0}
 	v2 := F3{1, 1, 0}
 	v3 := F3{1, 0, 1}
-	zval, err := zpixel(v1, v2, v3, [2]int{width / 20, height / 100})
+	zval, err := zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
+	zval, err = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
+	zval, err = zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
+
 	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
 	//test cross
 	norm := cross(v2, v3)
@@ -184,9 +191,10 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	blank.Blit(&rect, surf, &rect)
 	surf.Lock()
 	pix := surf.Pixels()
-
+	DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
 	update()
+	zbuff = make([]float64, width*height)
 	drawFrame(pix)
 	surf.Unlock()
 	window.UpdateSurface()
@@ -204,6 +212,8 @@ func drawFrame(pix []byte) {
 		globalcolor = RED | GREEN | BLUE
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
+		b := pixelbox(v1, v2, v3)
+
 		vline(v1, v2, pix)
 		vline(v2, v3, pix)
 		vline(v3, v1, pix)
@@ -214,11 +224,40 @@ func drawFrame(pix []byte) {
 			globalcolor = BLUE
 		}
 		vline(vn0, vadd(vn0, vn1), pix)
+		triangleBoxShader(v1, v2, v3, pix)
+		DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
+		DrawLine(b.x0, b.y1, b.x1, b.y1, GREEN|BLUE, pix)
+		DrawLine(b.x1, b.y1, b.x1, b.y0, GREEN|BLUE, pix)
+		DrawLine(b.x1, b.y0, b.x0, b.y0, GREEN|BLUE, pix)
 	}
+}
+
+// triangle drawing func
+func triangleBoxShader(a, b, c F3, pix []byte) {
+	tbox := pixelbox(a, b, c)
+	for i := tbox.x0; i < tbox.x1; i++ {
+		for j := tbox.y0; j < tbox.y1; j++ {
+			z, err := zpixel(a, b, c, [2]int{i, j})
+			if err != nil {
+				//fmt.Fprintf(os.Stderr, "boxshader: %v\n", err)
+				continue
+			}
+			//if z != 0 {
+			//	fmt.Printf("z= %v\n", z)
+			//}
+			if zbuff[i+j*width] >= z {
+				continue
+			}
+			zbuff[i+j*width] = z
+			putpixel(i, j, greyscale(z), pix)
+		}
+	}
+
 }
 
 var globalcolor uint32
 
+// draw line from vertex a to vertex b using globalcolor
 func vline(a, b F3, pixels []byte) {
 	va, vb := vtop(a), vtop(b)
 	p1x, p1y := va[0], va[1]
@@ -235,7 +274,7 @@ type box struct {
 }
 
 // get pixel bounding box for vertices
-func pixelbox(vs []F3) {
+func pixelbox(vs ...F3) box {
 	b := box{}
 	b.x0, b.y0 = 100000, 100000
 	b.x1, b.y1 = -1, -1
@@ -244,9 +283,9 @@ func pixelbox(vs []F3) {
 		b.x0, b.y0 = min(b.x0, p[0]), min(b.y0, p[1])
 		b.x1, b.y1 = max(b.x1, p[0]), max(b.y1, p[1])
 	}
+	return b
 }
 
-// get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
 type zpixelerror struct {
 	err string
 }
@@ -260,41 +299,67 @@ func (e zpixelerror) Error() string {
 
 var zpixeldebug bool
 
+// pixel-to-vertex liner transform - assigning z=0
+func ptov(p [2]int) F3 {
+	x := float64(p[0] - width/2)
+	y := float64(p[1] - height/2)
+	x /= width / 2
+	y /= width / 2
+	return F3{x, y, 0}
+}
+
+// get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
 func zpixel(v0, v1, v2 F3, px [2]int) (z float64, err error) {
 	if zpixeldebug {
-		fmt.Printf("zpixeldebug: zpixel called with v0=%v, v1=%v, v2=%v, px=%v\n", v0, v1, v2, px)
+		fmt.Printf("\n\n\nnzpixeldebug: zpixel called with v0=%v, v1=%v, v2=%v, px=%v\n", v0, v1, v2, px)
+		defer func() {
+			fmt.Printf("returned z=%v, err=%v\n", z, err)
+		}()
 	}
-	p0, p1, p2 := vtop(v0), vtop(v1), vtop(v2)
-	var u [2]float64
-	var w [2]float64
-	u[0], u[1] = float64(p1[0]-p0[0]), float64(p1[1]-p0[1])
-	w[0], w[1] = float64(p2[0]-p0[0]), float64(p2[1]-p0[1])
+	//translate triangle verts so v0 -> 0
+	u := vdiff(v1, v0)
+	w := vdiff(v2, v0)
+	//get z offset
+	z0 := v0[2]
+	//convert pixel to vert
+	pv := ptov(px)
 	if zpixeldebug {
-		fmt.Printf("zpixeldebug: vectors: u=<%v %v>, w=<%v %v>\n", u[0], u[1], w[0], w[1])
-		fmt.Printf("zpixeldebug: constant offset: <%v %v>\n", v0[0], v0[1])
+		fmt.Printf("ptov(%v)=%v\n", px, pv)
+	}
+	//shift to match v0,1,2; after this pv has z=-p0
+	pv = vdiff(pv, v0)
+	if zpixeldebug {
+		fmt.Printf("pv after xy shift: %v\n", pv)
+	}
+	if zpixeldebug {
+		fmt.Printf("zpixeldebug: vectors: u=<%v>, w=<%v>", u, w)
+		fmt.Printf("zpixeldebug: constant offset: v0=<%v>", v0)
 
 	}
 	a := u[0]
 	b := w[0]
 	c := u[1]
 	d := w[1]
-	x := float64(px[0])
-	y := float64(px[1])
+	x := pv[0]
+	y := pv[1]
 	//make sure determinant is ! = 0
 	if a*d-b*c == 0 {
 		return 0, flatTriangleError
 	}
 	det := 1 / (a*d - b*c)
-	//calculate coefficients for vectors v,w
-	cv := d*det*x - b*det*y
+	//change 2D basis for pv from X,Y to u,v.
+	//(calculate coefficients for vectors v,w relative to z0)
+	cu := d*det*x - b*det*y
 	cw := -c*det*x + a*det*y
 	if zpixeldebug {
-		fmt.Printf("zpixeldebug: barycentric coordinates: [%v %v] => %v<%v %v> + %v<%v %v>\n", px[0], px[1], cv, u[0], u[1], cw, w[0], w[1])
+		fmt.Printf("zpixeldebug: barycentric coordinates: [%v %v] => %v<%v %v> + %v<%v %v>\n", x, y, cu, u[0], u[1], cw, w[0], w[1])
 	}
-	if cv < 0 || cw < 0 || cv+cw > 1 {
+	//make sure pv is inside of the triangle
+	if cu < 0 || cw < 0 || cu+cw > 1 {
 		return 0, offTriangleError
 	}
-	z = v0[2] + v1[2]*cv + v2[2]*cw
+	//adjust z-coordinates for pv again, based on new basis relative to z0
+	z = z0 + u[2]*cu + w[2]*cw
 	if zpixeldebug {
 		fmt.Printf("zpixeldebug: final zval = %v\n", z)
 	}
@@ -357,15 +422,15 @@ func vnormalize(v F3) F3 {
 }
 
 // vector subtraction u-v
-func F3Diff(u, v F3) F3 {
+func vdiff(u, v F3) F3 {
 	x := u[0] - v[0]
 	y := u[1] - v[1]
 	z := u[2] - v[2]
 	return F3{x, y, z}
 }
 func DynamicNormalForFace(v1, v2, v3 F3) F3 {
-	u := F3Diff(v2, v1)
-	v := F3Diff(v3, v1)
+	u := vdiff(v2, v1)
+	v := vdiff(v3, v1)
 	c := cross(u, v)
 	cn := vnormalize(c)
 	return cn
@@ -414,6 +479,20 @@ func DrawLine(x0, y0, x1, y1 int, color uint32, pixels []byte) {
 		}
 		putpixel(x, y, color, pixels)
 	}
+}
+
+// return color: <=0->black, 1->white
+func greyscale(i float64) uint32 {
+	if i < 0 {
+		i = 0
+	}
+	if i > 1 {
+		i = 1
+	}
+	r := uint32(i*RED) & RED
+	g := uint32(i*GREEN) & GREEN
+	b := uint32(i*BLUE) & BLUE
+	return r | b | g
 }
 func putpixel(x, y int, color uint32, pixels []byte) {
 	if x >= width || y >= height || x < 0 || y < 0 {
