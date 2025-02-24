@@ -35,12 +35,19 @@ var wireframe bool
 var file *os.File
 var fileVerts []F3
 var fileFaces [][3]int
-var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
-var done bool          //control program exit
+
+// var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
+var done bool //control program exit
 var loops uint64
 var dur time.Duration
 var greyval float64
 var zbuff []float64
+var lightpos []F3
+var lightcolors []uint32
+var lightpower []float64
+var lightrot float64
+var colorEnabled bool
+var shadingEnabled bool
 
 // load vertex from string
 func loadVertex(s string, verts *[]F3) {
@@ -114,6 +121,9 @@ func update() {
 	for i := range fileVerts {
 		v := fileVerts[i]
 		v = yrot(v, yrotd)
+		for j := range lightpos {
+			lightpos[j] = xrot(lightpos[j], lightrot)
+		}
 		fileVerts[i] = v
 	}
 	greyval -= 0.001
@@ -128,6 +138,18 @@ func benchStart(dur *time.Duration) {
 }
 func main() {
 	zbuff = make([]float64, width*height)
+	lightpos = append(lightpos, F3{2, 0.5, 1})
+	lightpos = append(lightpos, F3{-2, 0.5, 1})
+	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
+	//lightpos = append(lightpos, F3{0, -3.5, 1.5})
+	lightcolors = append(lightcolors, RED|GREEN|BLUE)
+	lightcolors = append(lightcolors, GREEN|BLUE)
+	//lightcolors = append(lightcolors, RED)
+	//lightcolors = append(lightcolors, RED|GREEN)
+	lightpower = append(lightpower, 1)
+	lightpower = append(lightpower, 1)
+	//lightpower = append(lightpower, 0.5)
+	//lightpower = append(lightpower, 0.5)
 	loadobjfile(filename)
 	for i, v := range fileVerts {
 		fileVerts[i] = xrot(v, xrotset)
@@ -140,9 +162,9 @@ func main() {
 	v1 := F3{0, 0, 0}
 	v2 := F3{1, 1, 0}
 	v3 := F3{1, 0, 1}
-	zval, err := zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
-	zval, err = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
-	zval, err = zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
+	_, _ = zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
+	_, _ = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
+	zval, err := zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
 
 	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
 	//test cross
@@ -185,7 +207,7 @@ func mainLoop() {
 	defer window.Destroy()
 
 	//benchmarking
-	// benchStart(&loops, &dur)
+	benchStart(&dur)
 
 	//draw loop
 	for {
@@ -231,13 +253,14 @@ func drawFrame(pix []byte) {
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
 		//b := pixelbox(v1, v2, v3)
-
-		//	vline(v1, v2, pix)
-		//	vline(v2, v3, pix)
-		//	vline(v3, v1, pix)
+		globalcolor = RED
+		if wireframe {
+			vline(v1, v2, pix)
+			vline(v2, v3, pix)
+			vline(v3, v1, pix)
+		}
 		vn1 := DynamicNormalForFace(v1, v2, v3)
 		//vn0 := vavg(v1, v2, v3)
-		globalcolor = RED
 		if vn1[2] < 0 {
 			globalcolor = BLUE
 		}
@@ -250,7 +273,10 @@ func drawFrame(pix []byte) {
 	}
 }
 
-// triangle drawing func
+// func getVertexInterpShader(a,b,c F3, []uint32 cls) func(x,y int) float32{
+//
+// }
+// triangle drawing func, does z-buffering
 func triangleBoxShader(a, b, c F3, pix []byte) {
 	tbox := pixelbox(a, b, c)
 	for i := tbox.x0; i <= tbox.x1; i++ {
@@ -269,7 +295,23 @@ func triangleBoxShader(a, b, c F3, pix []byte) {
 			zbuff[i+j*width] = z
 			//putpixel(i, j, greyscale(z), pix)
 			vn1 := DynamicNormalForFace(a, b, c)
-			putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
+			var lightConts uint32
+			for lidx, src := range lightpos {
+				pow := lightpower[lidx]
+				intensity := greyscale(dot(vn1, src) * pow)
+				col := lightcolors[lidx]
+				if !colorEnabled {
+					col = RED | GREEN | BLUE
+				}
+				lightConts = lightConts | (intensity & col)
+			}
+
+			//putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
+			if !shadingEnabled {
+				continue
+			}
+			putpixel(i, j, lightConts, pix)
+
 		}
 	}
 
@@ -277,7 +319,7 @@ func triangleBoxShader(a, b, c F3, pix []byte) {
 
 var globalcolor uint32
 
-// draw line from vertex a to vertex b using globalcolor
+// raw line from vertex a to vertex b using globalcolor
 func vline(a, b F3, pixels []byte) {
 	va, vb := vtop(a), vtop(b)
 	p1x, p1y := va[0], va[1]
@@ -550,6 +592,10 @@ func takeKeyboardInput() {
 			case 79: //right
 			case 26: //'w'
 				wireframe = !wireframe
+			case 6: //'c'
+				colorEnabled = !colorEnabled
+			case 22: //'s'
+				shadingEnabled = !shadingEnabled
 			}
 
 		}
