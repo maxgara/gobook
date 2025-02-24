@@ -16,14 +16,15 @@ import (
 
 const (
 	width, height = 800, 800 //window dims
-	filename      = "square.obj"
+	filename      = "african_head.obj"
 	// filename = "african_head.obj"
-	delay = 1
-	yrotd = 0.01 // +y azis rotation per frame
-	RED   = 0x0000ff00
-	GREEN = 0x00ff0000
-	BLUE  = 0xff000000
-	ALPHA = 0x000000ff
+	delay   = 1
+	yrotd   = 0.01 // +y azis rotation per frame
+	xrotset = 0    // +x azis rotation
+	RED     = 0x0000ff00
+	GREEN   = 0x00ff0000
+	BLUE    = 0xff000000
+	ALPHA   = 0x000000ff
 )
 
 type F3 [3]float64
@@ -96,6 +97,19 @@ func yrot(v F3, t float64) F3 {
 	z1 := z*ct - x*st
 	return F3{x1, y1, z1}
 }
+
+// rotate around +x axis by t(heta) radians
+func xrot(v F3, t float64) F3 {
+	st := math.Sin(t)
+	ct := math.Cos(t)
+	x := v[0]
+	y := v[1]
+	z := v[2]
+	x1 := x
+	y1 := y*ct + z*st
+	z1 := z*ct - y*st
+	return F3{x1, y1, z1}
+}
 func update() {
 	for i := range fileVerts {
 		v := fileVerts[i]
@@ -115,7 +129,8 @@ func benchStart(dur *time.Duration) {
 func main() {
 	zbuff = make([]float64, width*height)
 	loadobjfile(filename)
-	for _, v := range fileVerts {
+	for i, v := range fileVerts {
+		fileVerts[i] = xrot(v, xrotset)
 		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
 	}
 	fmt.Printf("vtop(%v)=%v\n", F3{-1, -1, -1}, vtop(F3{-1, -1, -1}))
@@ -195,6 +210,9 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	// fmt.Println(pix)
 	update()
 	zbuff = make([]float64, width*height)
+	for i := range zbuff {
+		zbuff[i] = -1000
+	}
 	drawFrame(pix)
 	surf.Unlock()
 	window.UpdateSurface()
@@ -212,31 +230,31 @@ func drawFrame(pix []byte) {
 		globalcolor = RED | GREEN | BLUE
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
-		b := pixelbox(v1, v2, v3)
+		//b := pixelbox(v1, v2, v3)
 
-		vline(v1, v2, pix)
-		vline(v2, v3, pix)
-		vline(v3, v1, pix)
+		//	vline(v1, v2, pix)
+		//	vline(v2, v3, pix)
+		//	vline(v3, v1, pix)
 		vn1 := DynamicNormalForFace(v1, v2, v3)
-		vn0 := vavg(v1, v2, v3)
+		//vn0 := vavg(v1, v2, v3)
 		globalcolor = RED
 		if vn1[2] < 0 {
 			globalcolor = BLUE
 		}
-		vline(vn0, vadd(vn0, vn1), pix)
+		//vline(vn0, vadd(vn0, vn1), pix)
 		triangleBoxShader(v1, v2, v3, pix)
-		DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
-		DrawLine(b.x0, b.y1, b.x1, b.y1, GREEN|BLUE, pix)
-		DrawLine(b.x1, b.y1, b.x1, b.y0, GREEN|BLUE, pix)
-		DrawLine(b.x1, b.y0, b.x0, b.y0, GREEN|BLUE, pix)
+		//	DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
+		//	DrawLine(b.x0, b.y1, b.x1, b.y1, GREEN|BLUE, pix)
+		//	DrawLine(b.x1, b.y1, b.x1, b.y0, GREEN|BLUE, pix)
+		//	DrawLine(b.x1, b.y0, b.x0, b.y0, GREEN|BLUE, pix)
 	}
 }
 
 // triangle drawing func
 func triangleBoxShader(a, b, c F3, pix []byte) {
 	tbox := pixelbox(a, b, c)
-	for i := tbox.x0; i < tbox.x1; i++ {
-		for j := tbox.y0; j < tbox.y1; j++ {
+	for i := tbox.x0; i <= tbox.x1; i++ {
+		for j := tbox.y0; j <= tbox.y1; j++ {
 			z, err := zpixel(a, b, c, [2]int{i, j})
 			if err != nil {
 				//fmt.Fprintf(os.Stderr, "boxshader: %v\n", err)
@@ -249,7 +267,9 @@ func triangleBoxShader(a, b, c F3, pix []byte) {
 				continue
 			}
 			zbuff[i+j*width] = z
-			putpixel(i, j, greyscale(z), pix)
+			//putpixel(i, j, greyscale(z), pix)
+			vn1 := DynamicNormalForFace(a, b, c)
+			putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
 		}
 	}
 
@@ -428,10 +448,15 @@ func vdiff(u, v F3) F3 {
 	z := u[2] - v[2]
 	return F3{x, y, z}
 }
+
+// get normal to triangle face - orient towards +z
 func DynamicNormalForFace(v1, v2, v3 F3) F3 {
 	u := vdiff(v2, v1)
 	v := vdiff(v3, v1)
 	c := cross(u, v)
+	if c[2] > 0 {
+		c = vinv(c)
+	}
 	cn := vnormalize(c)
 	return cn
 }
