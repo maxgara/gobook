@@ -17,7 +17,7 @@ import (
 const (
 	width, height = 800, 800 //window dims
 	filename      = "african_head.obj"
-	delay         = 1
+	delay         = 0
 	yrotd         = 0.01 // +y azis rotation per frame
 	xrotset       = 0    // +x azis rotation
 	RED           = 0x0000ff00
@@ -38,8 +38,8 @@ var fileFaces [][3]int
 // var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
 var done bool //control program exit
 var loops uint64
-var dur time.Duration
-var greyval float64
+
+// var greyval float64
 var zbuff []float64
 var zmask []uint32
 var lightpos []F3
@@ -48,6 +48,8 @@ var lightpower []float64
 var lightrot float64
 var colorEnabled bool
 var shadingEnabled bool
+var cpuprofile bool
+var start time.Time
 
 // load vertex from string
 func loadVertex(s string, verts *[]F3) {
@@ -126,26 +128,29 @@ func update() {
 		}
 		fileVerts[i] = v
 	}
-	greyval -= 0.001
+	//greyval -= 0.001
 }
-func benchStart(dur *time.Duration) {
-	start := time.Now()
+func benchStart() {
+	start = time.Now()
 	go func() {
 		// terminate process after 120 seconds and report loops
 		<-time.After(time.Second * 120)
-		*dur = time.Since(start)
+		end()
 	}()
 }
 func main() {
-	f, err := os.Create("cpuprofile")
-	if err != nil {
-		log.Fatal(err)
+	shadingEnabled = true
+	cpuprofile = true
+	if cpuprofile {
+		f, err := os.Create("cpuprofile")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-	zbuff = make([]float64, width*height)
-	blankMask = make([]uint32, width*height)
-	zmask = make([]uint32, width*height)
+	//zbuff = make([]float64, width*height)
+	zmask = make([]uint32, width*height+801)
 	lightpos = append(lightpos, F3{2, 0.5, 1})
 	lightpos = append(lightpos, F3{-2, 0.5, 1})
 	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
@@ -161,15 +166,18 @@ func main() {
 	loadobjfile(filename)
 	for i, v := range fileVerts {
 		fileVerts[i] = xrot(v, xrotset)
-		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
+		//		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
 	}
-	fmt.Printf("vtop(%v)=%v\n", F3{-1, -1, -1}, vtop(F3{-1, -1, -1}))
-	fmt.Printf("vtop(%v)=%v\n", F3{1, 1, 1}, vtop(F3{1, 1, 1}))
+	//	fmt.Printf("vtop(%v)=%v\n", F3{-1, -1, -1}, vtop(F3{-1, -1, -1}))
+	//	fmt.Printf("vtop(%v)=%v\n", F3{1, 1, 1}, vtop(F3{1, 1, 1}))
 	//test zpixel
 	//zpixeldebug = true
-	v1 := F3{0, 0, 0}
+	v1 := F3{-1, 0, 0}
 	v2 := F3{1, 1, 0}
 	v3 := F3{1, 0, 1}
+	_ = vscale(v1, 1)
+	_ = vadd(v1, v1)
+	_ = vavg(v1, v1)
 	_, _ = zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
 	_, _ = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
 	zval, err := zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
@@ -177,17 +185,28 @@ func main() {
 	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
 	//test cross
 	norm := cross(v2, v3)
-	fmt.Printf("cross of %v %v = %v", v2, v3, norm)
+	//	fmt.Printf("cross of %v %v = %v", v2, v3, norm)
 	norm = vnormalize(norm)
-	fmt.Printf("after normalization: %v\n", norm)
+	_ = norm
+	//	fmt.Printf("after normalization: %v\n", norm)
 	//test dynamicNormalForFace
 	dn := DynamicNormalForFace(v1, v2, v3)
-	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
-	v3 = F3{1, 0, 0}
+	_ = dn
+	//	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
+	//v3 = F3{1, 0, 0}
 	dn = DynamicNormalForFace(v1, v2, v3)
 	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
-	av := vavg(v1, v2, v3)
-	fmt.Printf("vavg = %v\n", av)
+	//av := vavg(v1, v2, v3)
+	//fmt.Printf("vavg = %v\n", av)
+	//test zpixelmask
+	zbuff = make([]float64, width*height+801)
+	for i := range zbuff {
+		zbuff[i] = -1000
+	}
+	_ = zpixelboxmask(v1, v2, v3, zmask)
+	for i := 0; i < height-1; i++ {
+		//fmt.Printf("zmask:%v\n", zmask[i*width:i*width+width])
+	}
 	// fmt.Println(fileVerts)
 	// fmt.Println(fileFaces)
 	mainLoop()
@@ -215,7 +234,7 @@ func mainLoop() {
 	defer window.Destroy()
 
 	//benchmarking
-	benchStart(&dur)
+	benchStart()
 
 	//draw loop
 	for {
@@ -226,7 +245,7 @@ func mainLoop() {
 			end()
 			return
 		}
-		sdl.Delay(delay)
+		//sdl.Delay(delay)
 	}
 
 }
@@ -234,15 +253,14 @@ func mainLoop() {
 func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	rect := sdl.Rect{0, 0, width, height}
 	blank.Blit(&rect, surf, &rect)
-	surf.Lock()
-	pix := surf.Pixels()
-	DrawLine(0, 0, width, height, greyscale(greyval), pix)
-	// fmt.Println(pix)
-	update()
-	zbuff = make([]float64, width*height)
 	for i := range zbuff {
 		zbuff[i] = -1000
 	}
+	surf.Lock()
+	pix := surf.Pixels()
+	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
+	// fmt.Println(pix)
+	update()
 	drawFrame(pix)
 	surf.Unlock()
 	window.UpdateSurface()
@@ -257,7 +275,6 @@ func drawFrame(pix []byte) {
 	// DrawLine(0, 0, width, height, RED|BLUE|GREEN, pix)
 	//draw line between vertices
 	for _, f := range fileFaces {
-		globalcolor = RED | GREEN | BLUE
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
 		//b := pixelbox(v1, v2, v3)
@@ -267,11 +284,8 @@ func drawFrame(pix []byte) {
 			vline(v2, v3, pix)
 			vline(v3, v1, pix)
 		}
-		vn1 := DynamicNormalForFace(v1, v2, v3)
+		//vn1 := DynamicNormalForFace(v1, v2, v3)
 		//vn0 := vavg(v1, v2, v3)
-		if vn1[2] < 0 {
-			globalcolor = BLUE
-		}
 		//vline(vn0, vadd(vn0, vn1), pix)
 		triangleBoxShader(v1, v2, v3, pix)
 		//	DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
@@ -287,31 +301,40 @@ func drawFrame(pix []byte) {
 // triangle drawing func, does z-buffering
 func triangleBoxShader(a, b, c F3, pix []byte) {
 	tbox := pixelbox(a, b, c)
+	//	if tbox.x1+width*tbox.y1 >= 640000 {
+	//fmt.Printf("tboxshader called for %v %v %v with tbox %v corresponding to idx in pixels > 640000: %vi", a, b, c, tbox, tbox.x1+width*tbox.y1)
+	//	}
 	err := zpixelboxmask(a, b, c, zmask)
 	if err != nil {
 		log.Fatal(err)
 	}
+	//fmt.Printf("zmask: %v\n", zmask)
+	//os.Exit(0)
+	vn1 := DynamicNormalForFace(a, b, c)
+	//putpixel(i, j, greyscale(z), pix)
+	var lightConts uint32
+	for lidx, src := range lightpos {
+		pow := lightpower[lidx]
+		intensity := greyscale(dot(vn1, src) * pow)
+		col := lightcolors[lidx]
+		if !colorEnabled {
+			col = RED | GREEN | BLUE
+		}
+		lightConts = intensity & col
+	}
 	for i := tbox.x0; i <= tbox.x1; i++ {
 		for j := tbox.y0; j <= tbox.y1; j++ {
-			//putpixel(i, j, greyscale(z), pix)
-			vn1 := DynamicNormalForFace(a, b, c)
-			var lightConts uint32
-			for lidx, src := range lightpos {
-				pow := lightpower[lidx]
-				intensity := greyscale(dot(vn1, src) * pow)
-				col := lightcolors[lidx]
-				if !colorEnabled {
-					col = RED | GREEN | BLUE
-				}
-				lightConts = lightConts | (intensity & col)
-			}
-
 			//putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
 			if !shadingEnabled {
 				continue
 			}
+			maskval := zmask[i+width*j]
+			if maskval == 0 {
+				continue
+			}
+			lightConts = lightConts & maskval
+			//lightConts = (RED | GREEN | BLUE) & maskval
 			putpixel(i, j, lightConts, pix)
-
 		}
 	}
 
@@ -370,13 +393,10 @@ func ptov(p [2]int) F3 {
 	return F3{x, y, 0}
 }
 
-var blankMask []uint32
-
 func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 	//get bounding box to draw in
 	bds := pixelbox(v0, v1, v2)
 	//create pixel square to blit
-	copy(zmask, blankMask)
 	//translate triangle verts so v0 -> 0
 	u := vdiff(v1, v0)
 	w := vdiff(v2, v0)
@@ -407,20 +427,22 @@ func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 			//make sure pv is inside of the triangle
 			cu := d*det*x - b*det*y
 			cw := -c*det*x + a*det*y
+			//get masking index
+			midx := i + j*width
 			//make sure px is inside of the triangle
 			if cu < 0 || cw < 0 || cu+cw > 1 {
+				zmask[midx] = 0
 				continue
 			}
-			//if there is a triangle in front of the current position, leave mask val as 0
+			//if there is a triangle in front of the current position
 			z := z0 + u[2]*cu + w[2]*cw
-			if zbuff[i+j*width] >= z {
+			if zbuff[midx] > z {
+				zmask[midx] = 0
 				continue
 			}
-			zbuff[i+j*width] = z
-			//compute index in mask based on bounds
-			zvalsidx := (i - bds.x0) + (bds.x1-bds.x0)*(j-bds.y0)
+			zbuff[midx] = z
 			//set mask color bits for pixels where triangle should be drawn
-			zmask[zvalsidx] = 0xffffffff
+			zmask[midx] = RED | GREEN | BLUE
 		}
 	}
 	return nil
@@ -429,7 +451,7 @@ func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 // get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
 func zpixel(v0, v1, v2 F3, px [2]int) (z float64, err error) {
 	if zpixeldebug {
-		fmt.Printf("\n\n\nnzpixeldebug: zpixel called with v0=%v, v1=%v, v2=%v, px=%v\n", v0, v1, v2, px)
+		//fmt.Printf("\n\n\nnzpixeldebug: zpixel called with v0=%v, v1=%v, v2=%v, px=%v\n", v0, v1, v2, px)
 		defer func() {
 			fmt.Printf("returned z=%v, err=%v\n", z, err)
 		}()
@@ -662,9 +684,11 @@ func takeKeyboardInput() {
 	}
 }
 func end() {
+	dur := time.Since(start)
 	var loopsPerSec = float64(loops) / float64(dur.Seconds())
 	// fmt.Println(surf.Pixels())
 	runtime.GC() // get up-to-date statistics
+	file, _ = os.Create("memprofile")
 	pprof.WriteHeapProfile(file)
 	fmt.Printf("dur=%v; loops=%v; lps=%v\n", dur.Seconds(), loops, loopsPerSec)
 }
