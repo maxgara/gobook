@@ -9,6 +9,7 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -261,11 +262,43 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
 	update()
-	drawFrame(pix)
+	//drawFrame(pix)
+	parallelDrawFrame(pix)
 	surf.Unlock()
 	window.UpdateSurface()
 
 }
+func parallelDrawFrame(pix []byte) {
+	gct := 10 //goroutine count
+	fct := len(fileFaces) / gct
+	wg := sync.WaitGroup{}
+	for i := range gct {
+		wg.Add(1)
+		go func() {
+			for _, f := range fileFaces[fct*i : fct*(i+1)] {
+				i1, i2, i3 := f[0], f[1], f[2]
+				v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
+				//b := pixelbox(v1, v2, v3)
+				globalcolor = RED
+				if wireframe {
+					vline(v1, v2, pix)
+					vline(v2, v3, pix)
+					vline(v3, v1, pix)
+				}
+				triangleBoxShader(v1, v2, v3, pix)
+			}
+			wg.Done()
+		}()
+
+	}
+	wg.Wait()
+}
+
+// func getVertexInterpShader(a,b,c F3, []uint32 cls) func(x,y int) float32{
+//
+// }
+// triangle drawing func, does z-buffering
+
 func drawFrame(pix []byte) {
 	// for i := range width {
 	// 	for j := range height {
@@ -274,6 +307,7 @@ func drawFrame(pix []byte) {
 	// }
 	// DrawLine(0, 0, width, height, RED|BLUE|GREEN, pix)
 	//draw line between vertices
+
 	for _, f := range fileFaces {
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
