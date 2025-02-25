@@ -17,14 +17,13 @@ import (
 const (
 	width, height = 800, 800 //window dims
 	filename      = "african_head.obj"
-	// filename = "african_head.obj"
-	delay   = 1
-	yrotd   = 0.01 // +y azis rotation per frame
-	xrotset = 0    // +x azis rotation
-	RED     = 0x0000ff00
-	GREEN   = 0x00ff0000
-	BLUE    = 0xff000000
-	ALPHA   = 0x000000ff
+	delay         = 1
+	yrotd         = 0.01 // +y azis rotation per frame
+	xrotset       = 0    // +x azis rotation
+	RED           = 0x0000ff00
+	GREEN         = 0x00ff0000
+	BLUE          = 0xff000000
+	ALPHA         = 0x000000ff
 )
 
 type F3 [3]float64
@@ -42,6 +41,7 @@ var loops uint64
 var dur time.Duration
 var greyval float64
 var zbuff []float64
+var zmask []uint32
 var lightpos []F3
 var lightcolors []uint32
 var lightpower []float64
@@ -137,7 +137,15 @@ func benchStart(dur *time.Duration) {
 	}()
 }
 func main() {
+	f, err := os.Create("cpuprofile")
+	if err != nil {
+		log.Fatal(err)
+	}
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
 	zbuff = make([]float64, width*height)
+	blankMask = make([]uint32, width*height)
+	zmask = make([]uint32, width*height)
 	lightpos = append(lightpos, F3{2, 0.5, 1})
 	lightpos = append(lightpos, F3{-2, 0.5, 1})
 	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
@@ -279,20 +287,12 @@ func drawFrame(pix []byte) {
 // triangle drawing func, does z-buffering
 func triangleBoxShader(a, b, c F3, pix []byte) {
 	tbox := pixelbox(a, b, c)
+	err := zpixelboxmask(a, b, c, zmask)
+	if err != nil {
+		log.Fatal(err)
+	}
 	for i := tbox.x0; i <= tbox.x1; i++ {
 		for j := tbox.y0; j <= tbox.y1; j++ {
-			z, err := zpixel(a, b, c, [2]int{i, j})
-			if err != nil {
-				//fmt.Fprintf(os.Stderr, "boxshader: %v\n", err)
-				continue
-			}
-			//if z != 0 {
-			//	fmt.Printf("z= %v\n", z)
-			//}
-			if zbuff[i+j*width] >= z {
-				continue
-			}
-			zbuff[i+j*width] = z
 			//putpixel(i, j, greyscale(z), pix)
 			vn1 := DynamicNormalForFace(a, b, c)
 			var lightConts uint32
@@ -368,6 +368,62 @@ func ptov(p [2]int) F3 {
 	x /= width / 2
 	y /= width / 2
 	return F3{x, y, 0}
+}
+
+var blankMask []uint32
+
+func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
+	//get bounding box to draw in
+	bds := pixelbox(v0, v1, v2)
+	//create pixel square to blit
+	copy(zmask, blankMask)
+	//translate triangle verts so v0 -> 0
+	u := vdiff(v1, v0)
+	w := vdiff(v2, v0)
+	//get z offset
+	z0 := v0[2]
+
+	a := u[0]
+	b := w[0]
+	c := u[1]
+	d := w[1]
+	//make sure determinant is ! = 0
+	if a*d-b*c == 0 {
+		return nil
+	}
+	det := 1 / (a*d - b*c)
+	//get z-pixel values
+	for i := bds.x0; i <= bds.x1; i++ {
+		for j := bds.y0; j <= bds.y1; j++ {
+			//convert pixel to vert
+			px := [2]int{i, j}
+			pv := ptov(px)
+			//shift to match v0,1,2
+			pv = vdiff(pv, v0)
+			x := pv[0]
+			y := pv[1]
+			//change 2D basis for pv from X,Y to u,v.
+			//(calculate coefficients for vectors v,w relative to z0)
+			//make sure pv is inside of the triangle
+			cu := d*det*x - b*det*y
+			cw := -c*det*x + a*det*y
+			//make sure px is inside of the triangle
+			if cu < 0 || cw < 0 || cu+cw > 1 {
+				continue
+			}
+			//if there is a triangle in front of the current position, leave mask val as 0
+			z := z0 + u[2]*cu + w[2]*cw
+			if zbuff[i+j*width] >= z {
+				continue
+			}
+			zbuff[i+j*width] = z
+			//compute index in mask based on bounds
+			zvalsidx := (i - bds.x0) + (bds.x1-bds.x0)*(j-bds.y0)
+			//set mask color bits for pixels where triangle should be drawn
+			zmask[zvalsidx] = 0xffffffff
+		}
+	}
+	return nil
 }
 
 // get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
