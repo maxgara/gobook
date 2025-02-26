@@ -18,13 +18,14 @@ import (
 const (
 	width, height = 800, 800 //window dims
 	filename      = "african_head.obj"
-	delay         = 0
-	yrotd         = 0.01 // +y azis rotation per frame
-	xrotset       = 0    // +x azis rotation
-	RED           = 0x0000ff00
-	GREEN         = 0x00ff0000
-	BLUE          = 0xff000000
-	ALPHA         = 0x000000ff
+	//filename = "square.obj"
+	delay   = 200
+	yrotd   = 0.01 // +y azis rotation per frame
+	xrotset = 0    // +x azis rotation
+	RED     = 0x0000ff00
+	GREEN   = 0x00ff0000
+	BLUE    = 0xff000000
+	ALPHA   = 0x000000ff
 )
 
 type F3 [3]float64
@@ -51,6 +52,8 @@ var colorEnabled bool
 var shadingEnabled bool
 var cpuprofile bool
 var start time.Time
+var parallel int
+var zmaskp [][]uint32
 
 // load vertex from string
 func loadVertex(s string, verts *[]F3) {
@@ -140,6 +143,7 @@ func benchStart() {
 	}()
 }
 func main() {
+	parallel = 0
 	shadingEnabled = true
 	cpuprofile = true
 	if cpuprofile {
@@ -237,6 +241,13 @@ func mainLoop() {
 	//benchmarking
 	benchStart()
 
+	//parallel zmask arrays so that masks do not change while they are being referenced
+	if parallel > 1 {
+		zmaskp = make([][]uint32, parallel)
+		for i := range zmaskp {
+			zmaskp[i] = make([]uint32, width*height+801)
+		}
+	}
 	//draw loop
 	for {
 		loops++
@@ -262,17 +273,20 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
 	update()
-	//drawFrame(pix)
-	parallelDrawFrame(pix)
+	if parallel > 1 {
+		parallelDrawFrame(pix)
+	} else {
+		drawFrame(pix)
+	}
 	surf.Unlock()
 	window.UpdateSurface()
 
 }
 func parallelDrawFrame(pix []byte) {
-	gct := 10 //goroutine count
-	fct := len(fileFaces) / gct
+	fct := len(fileFaces) / parallel
+
 	wg := sync.WaitGroup{}
-	for i := range gct {
+	for i := range parallel {
 		wg.Add(1)
 		go func() {
 			for _, f := range fileFaces[fct*i : fct*(i+1)] {
@@ -285,7 +299,7 @@ func parallelDrawFrame(pix []byte) {
 					vline(v2, v3, pix)
 					vline(v3, v1, pix)
 				}
-				triangleBoxShader(v1, v2, v3, pix)
+				triangleBoxShader(v1, v2, v3, pix, zmaskp[i])
 			}
 			wg.Done()
 		}()
@@ -293,11 +307,6 @@ func parallelDrawFrame(pix []byte) {
 	}
 	wg.Wait()
 }
-
-// func getVertexInterpShader(a,b,c F3, []uint32 cls) func(x,y int) float32{
-//
-// }
-// triangle drawing func, does z-buffering
 
 func drawFrame(pix []byte) {
 	// for i := range width {
@@ -321,7 +330,7 @@ func drawFrame(pix []byte) {
 		//vn1 := DynamicNormalForFace(v1, v2, v3)
 		//vn0 := vavg(v1, v2, v3)
 		//vline(vn0, vadd(vn0, vn1), pix)
-		triangleBoxShader(v1, v2, v3, pix)
+		triangleBoxShader(v1, v2, v3, pix, zmask)
 		//	DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
 		//	DrawLine(b.x0, b.y1, b.x1, b.y1, GREEN|BLUE, pix)
 		//	DrawLine(b.x1, b.y1, b.x1, b.y0, GREEN|BLUE, pix)
@@ -332,8 +341,9 @@ func drawFrame(pix []byte) {
 // func getVertexInterpShader(a,b,c F3, []uint32 cls) func(x,y int) float32{
 //
 // }
-// triangle drawing func, does z-buffering
-func triangleBoxShader(a, b, c F3, pix []byte) {
+// triangle drawing func, does z-buffering.
+// zmask is scratch space for computing visible pixels, does not need to be zeroed-out but cannot be changed concurrently with this function.
+func triangleBoxShader(a, b, c F3, pix []byte, zmask []uint32) {
 	tbox := pixelbox(a, b, c)
 	//	if tbox.x1+width*tbox.y1 >= 640000 {
 	//fmt.Printf("tboxshader called for %v %v %v with tbox %v corresponding to idx in pixels > 640000: %vi", a, b, c, tbox, tbox.x1+width*tbox.y1)
@@ -356,12 +366,13 @@ func triangleBoxShader(a, b, c F3, pix []byte) {
 		}
 		lightConts = intensity & col
 	}
+
+	if !shadingEnabled {
+		return
+	}
 	for i := tbox.x0; i <= tbox.x1; i++ {
 		for j := tbox.y0; j <= tbox.y1; j++ {
 			//putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
-			if !shadingEnabled {
-				continue
-			}
 			maskval := zmask[i+width*j]
 			if maskval == 0 {
 				continue
@@ -447,8 +458,36 @@ func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 	}
 	det := 1 / (a*d - b*c)
 	//get z-pixel values
-	for i := bds.x0; i <= bds.x1; i++ {
+	var ihit int  // have we hit the triangle within i loop (ever)?
+	var jhit bool // have we hit the triangle in current j-loop (since we started down this vertical seg.)
+	//var ileft bool      //ihit then did not jhit
+	//var jleft bool      //hit and then did not hit
+	//var jdoublehit bool //jleft and then jhit
+	//var idoublehit bool
+	var i, j int
+	var dosomething *func()
+	var donothing = func() {
+	}
+	dosomething = &donothing
+	var breakfunc = func() {
+		j = bds.y1 //end jloop
+	}
+	for i = bds.x0; i <= bds.x1; i++ {
 		for j := bds.y0; j <= bds.y1; j++ {
+			midx := i + j*width
+			zmask[midx] = 0
+		}
+	}
+	for i = bds.x0; i <= bds.x1; i++ {
+		if ihit > 6 && !jhit {
+			//we have hit the triangle before, but no hit during previous i value: we have left the triangle along the x axis
+			//ileft = true
+			break
+		}
+		jhit = false
+		//jleft = false
+		dosomething = &donothing
+		for j = bds.y0; j <= bds.y1; j++ {
 			//convert pixel to vert
 			px := [2]int{i, j}
 			pv := ptov(px)
@@ -465,19 +504,35 @@ func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 			midx := i + j*width
 			//make sure px is inside of the triangle
 			if cu < 0 || cw < 0 || cu+cw > 1 {
-				zmask[midx] = 0
+				//	zmask[midx] = 0
+				//do not continue down y-axis once we have left the triangle
+				(*dosomething)()
 				continue
 			}
-			//if there is a triangle in front of the current position
+			//we are in the triangle
+			//if ileft {
+			//	idoublehit = true
+			//	_ = true
+			//}
+			//if jleft {
+			//	jdoublehit = true
+			//	_ = true
+			//}
+			jhit = true
+			dosomething = &breakfunc
+			ihit++
+			//if there is a triangle in front of the current position, don't draw
 			z := z0 + u[2]*cu + w[2]*cw
 			if zbuff[midx] > z {
-				zmask[midx] = 0
+				//zmask[midx] = 0
 				continue
 			}
 			zbuff[midx] = z
 			//set mask color bits for pixels where triangle should be drawn
 			zmask[midx] = RED | GREEN | BLUE
+
 		}
+
 	}
 	return nil
 }
