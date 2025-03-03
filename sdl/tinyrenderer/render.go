@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dblezek/tga"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -142,80 +143,6 @@ func benchStart() {
 		end()
 	}()
 }
-func main() {
-	parallel = 0
-	shadingEnabled = true
-	cpuprofile = true
-	if cpuprofile {
-		f, err := os.Create("cpuprofile")
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-	//zbuff = make([]float64, width*height)
-	zmask = make([]uint32, width*height+801)
-	lightpos = append(lightpos, F3{2, 0.5, 1})
-	lightpos = append(lightpos, F3{-2, 0.5, 1})
-	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
-	//lightpos = append(lightpos, F3{0, -3.5, 1.5})
-	lightcolors = append(lightcolors, RED|GREEN|BLUE)
-	lightcolors = append(lightcolors, GREEN|BLUE)
-	//lightcolors = append(lightcolors, RED)
-	//lightcolors = append(lightcolors, RED|GREEN)
-	lightpower = append(lightpower, 1)
-	lightpower = append(lightpower, 1)
-	//lightpower = append(lightpower, 0.5)
-	//lightpower = append(lightpower, 0.5)
-	loadobjfile(filename)
-	for i, v := range fileVerts {
-		fileVerts[i] = xrot(v, xrotset)
-		//		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
-	}
-	//	fmt.Printf("vtop(%v)=%v\n", F3{-1, -1, -1}, vtop(F3{-1, -1, -1}))
-	//	fmt.Printf("vtop(%v)=%v\n", F3{1, 1, 1}, vtop(F3{1, 1, 1}))
-	//test zpixel
-	//zpixeldebug = true
-	v1 := F3{-1, 0, 0}
-	v2 := F3{1, 1, 0}
-	v3 := F3{1, 0, 1}
-	_ = vscale(v1, 1)
-	_ = vadd(v1, v1)
-	_ = vavg(v1, v1)
-	_, _ = zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
-	_, _ = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
-	zval, err := zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
-
-	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
-	//test cross
-	norm := cross(v2, v3)
-	//	fmt.Printf("cross of %v %v = %v", v2, v3, norm)
-	norm = vnormalize(norm)
-	_ = norm
-	//	fmt.Printf("after normalization: %v\n", norm)
-	//test dynamicNormalForFace
-	dn := DynamicNormalForFace(v1, v2, v3)
-	_ = dn
-	//	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
-	//v3 = F3{1, 0, 0}
-	dn = DynamicNormalForFace(v1, v2, v3)
-	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
-	//av := vavg(v1, v2, v3)
-	//fmt.Printf("vavg = %v\n", av)
-	//test zpixelmask
-	zbuff = make([]float64, width*height+801)
-	for i := range zbuff {
-		zbuff[i] = -1000
-	}
-	_ = zpixelboxmask(v1, v2, v3, zmask)
-	for i := 0; i < height-1; i++ {
-		//fmt.Printf("zmask:%v\n", zmask[i*width:i*width+width])
-	}
-	// fmt.Println(fileVerts)
-	// fmt.Println(fileFaces)
-	mainLoop()
-}
 func mainLoop() {
 	//setup window
 	var winTitle string = "TinyRenderer"
@@ -262,6 +189,105 @@ func mainLoop() {
 
 }
 
+func testfunctions() {
+	//test zpixel
+	//zpixeldebug = true
+	v1 := F3{-1, 0, 0}
+	v2 := F3{1, 1, 0}
+	v3 := F3{1, 0, 1}
+	_ = vscale(v1, 1)
+	_ = vadd(v1, v1)
+	_ = vavg(v1, v1)
+	_, _ = zpixel(v1, v2, v3, [2]int{3 * width / 4, 4 * height / 6})
+	_, _ = zpixel(v2, v1, v3, [2]int{3 * width / 4, 4 * height / 6})
+	zval, err := zpixel(v3, v2, v1, [2]int{3 * width / 4, 4 * height / 6})
+
+	fmt.Printf("zval: v1=%v, v2=%v, v3=%v\tz=%v\terr=%v\n", v1, v2, v3, zval, err)
+	//test cross
+	norm := cross(v2, v3)
+	//	fmt.Printf("cross of %v %v = %v", v2, v3, norm)
+	norm = vnormalize(norm)
+	_ = norm
+	//	fmt.Printf("after normalization: %v\n", norm)
+	//test dynamicNormalForFace
+	dn := DynamicNormalForFace(v1, v2, v3)
+	_ = dn
+	//	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
+	//v3 = F3{1, 0, 0}
+	dn = DynamicNormalForFace(v1, v2, v3)
+	fmt.Printf("normal for triangle %v %v %v = %v\n", v1, v2, v3, dn)
+	//av := vavg(v1, v2, v3)
+	//fmt.Printf("vavg = %v\n", av)
+	//test zpixelmask
+	zbuff = make([]float64, width*height+801)
+	for i := range zbuff {
+		zbuff[i] = -1000
+	}
+	_ = zpixelboxmask(v1, v2, v3, zmask)
+	for i := 0; i < height-1; i++ {
+		//fmt.Printf("zmask:%v\n", zmask[i*width:i*width+width])
+	}
+}
+func testDrawTextureImg(pix []byte) {
+	f, err := os.Open("african_head_diffuse.tga")
+	if err != nil {
+		log.Fatal(err)
+	}
+	img, err := tga.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i := img.Bounds().Min.X; i < img.Bounds().Max.Y; i++ {
+		for j := img.Bounds().Min.Y; j < img.Bounds().Max.Y; j++ {
+			r j < img.Bounds().Max.Y; j++ {, g, b, a := img.At(i, j).RGBA()
+			//keep most significant bits of 16-bit color channels
+			r = r >> 8
+			g = g >> 8
+			b = b >> 8
+			a = a >> 8
+			//put them in the right place for final uint32 color BGRA
+			r = r << 8
+			g = g << 16
+			b = b << 24
+			a = a
+			color := b | g | r | a
+			putpixel(i, j, color, pix)
+	}
+}
+func main() {
+	parallel = 0
+	shadingEnabled = true
+	cpuprofile = true
+	if cpuprofile {
+		f, err := os.Create("cpuprofile")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	//zbuff = make([]float64, width*height)
+	zmask = make([]uint32, width*height+801)
+	lightpos = append(lightpos, F3{2, 0.5, 1})
+	lightpos = append(lightpos, F3{-2, 0.5, 1})
+	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
+	//lightpos = append(lightpos, F3{0, -3.5, 1.5})
+	lightcolors = append(lightcolors, RED|GREEN|BLUE)
+	lightcolors = append(lightcolors, GREEN|BLUE)
+	//lightcolors = append(lightcolors, RED)
+	//lightcolors = append(lightcolors, RED|GREEN)
+	lightpower = append(lightpower, 1)
+	lightpower = append(lightpower, 1)
+	//lightpower = append(lightpower, 0.5)
+	//lightpower = append(lightpower, 0.5)
+	loadobjfile(filename)
+	for i, v := range fileVerts {
+		fileVerts[i] = xrot(v, xrotset)
+		//		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
+	}
+	testfunctions()
+	mainLoop()
+}
 func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	rect := sdl.Rect{0, 0, width, height}
 	blank.Blit(&rect, surf, &rect)
@@ -276,6 +302,7 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	if parallel > 1 {
 		parallelDrawFrame(pix)
 	} else {
+		testDrawTextureImg(pix)
 		drawFrame(pix)
 	}
 	surf.Unlock()
@@ -437,7 +464,7 @@ func ptov(p [2]int) F3 {
 	y /= width / 2
 	return F3{x, y, 0}
 }
-
+// build a zmask for v0,v1,v2
 func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 	//get bounding box to draw in
 	bds := pixelbox(v0, v1, v2)
