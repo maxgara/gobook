@@ -21,6 +21,53 @@ func (e zpixelerror) Error() string {
 
 var zpixeldebug bool
 
+// barycentric coordinates for pixel; err == nil if barycentric coordinates found and point is in the triangle.
+// err != nil if point is outside of triangle, but coordinates will still be correct.
+func bary(v0, v1, v2 F3, px [2]int) (F3, error) {
+	//translate triangle verts so v0 -> 0
+	u := vdiff(v1, v0)
+	w := vdiff(v2, v0)
+	//get z offset
+	z0 := v0[2]
+	//convert pixel to vert
+	pv := ptov(px)
+	if zpixeldebug {
+		fmt.Printf("ptov(%v)=%v\n", px, pv)
+	}
+	//shift to match v0,1,2; after this pv has z=-p0
+	pv = vdiff(pv, v0)
+	if zpixeldebug {
+		fmt.Printf("pv after xy shift: %v\n", pv)
+	}
+	if zpixeldebug {
+		fmt.Printf("zpixeldebug: vectors: u=<%v>, w=<%v>", u, w)
+		fmt.Printf("zpixeldebug: constant offset: v0=<%v>", v0)
+
+	}
+	a := u[0]
+	b := w[0]
+	c := u[1]
+	d := w[1]
+	x := pv[0]
+	y := pv[1]
+	//make sure determinant is ! = 0
+	if a*d-b*c == 0 {
+		return 0, flatTriangleError
+	}
+	det := 1 / (a*d - b*c)
+	//change 2D basis for pv from X,Y to u,v.
+	//(calculate coefficients for vectors v,w relative to z0)
+	cu := d*det*x - b*det*y
+	cw := -c*det*x + a*det*y
+	// third barycentric coordinate (normalized so the at Sum = 1)
+	c0 := 1 - cu - cw
+	// if we are outside the triangle, return an error but also include the correct barycentric coordinates
+	if cu < 0 || cw < 0 || cu+cw > 1 {
+		return F3{c0, cu, cw}, offTriangleError
+	}
+	return F3{c0, cu, cw}, nil
+}
+
 // get z value of pixel px when projected onto triangle made of vertices v0,v1,v2. If px does not fall on the triangle, set err to OFFTRIANGLE
 func zpixel(v0, v1, v2 F3, px [2]int) (z float64, err error) {
 	if zpixeldebug {
@@ -224,3 +271,5 @@ func pixelbox(vs ...F3) box {
 	}
 	return b
 }
+
+//interpolate color 3 color value based on barycentric coordinates

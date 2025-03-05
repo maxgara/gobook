@@ -69,3 +69,10 @@ func textureFor(vidx int) uint32 {
 	c := textureAt(t[0], t[1])
 	return c
 }
+
+// stretch texture across triangle, map pixel (x,y) to color
+func interpTexture(aidx, bidx, cidx, x, y int) uint32 {
+	a, b, c := fileVerts[aidx], fileVerts[bidx], fileVerts[cidx]
+	br, err := bary(a, b, c, x, y)
+	//TODO :finish this function (get texture color at "br", return...)
+}
