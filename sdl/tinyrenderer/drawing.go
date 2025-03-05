@@ -63,7 +63,8 @@ func triangleBoxShader(aidx, bidx, cidx int, pix []byte, zmask []uint32) {
 			if textureEnabled {
 				//estimate texture color by using color at vertex 1.
 				//TODO: replace this with extrapolation using barycentric cs.
-				texturecolor := textureFor(aidx)
+				//texturecolor := textureFor(aidx)
+				texturecolor := interpTexture(aidx, bidx, cidx, i, j)
 				lightConts = texturecolor
 				//v0col :=
 			}
@@ -140,6 +141,7 @@ func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
 	return nil // }}}
 }
 
+// draw line between vertices
 func DrawLine(x0, y0, x1, y1 int, color uint32, pixels []byte) {
 	if x1 < x0 { // {{{
 		x0, x1 = x1, x0

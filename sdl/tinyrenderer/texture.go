@@ -53,12 +53,20 @@ func loadTexture(fs string) (texture []uint32, tstride int) {
 			texture = append(texture, color)
 		}
 	}
+	texw = img.Bounds().Max.X - img.Bounds().Min.X
+	texh = img.Bounds().Max.Y - img.Bounds().Min.Y
 	return texture, img.Bounds().Max.X - img.Bounds().Min.X
 }
 
 // get texture color at coordinates x,y.
 func textureAt(x, y float64) uint32 {
-	idx := x + y*float64(tstride)
+	xidx := (x + 1) / 2 * float64(texw)
+	yidx := (y + 1) / 2 * float64(texh)
+	idx := xidx + yidx*float64(tstride)
+	//idx -= yidx * float64(tstride)
+	if int(idx) >= len(texture) {
+		panic("textureAt: texture coordinates out of bounds")
+	}
 	col := texture[int(idx)]
 	return col
 }
@@ -72,7 +80,14 @@ func textureFor(vidx int) uint32 {
 
 // stretch texture across triangle, map pixel (x,y) to color
 func interpTexture(aidx, bidx, cidx, x, y int) uint32 {
-	a, b, c := fileVerts[aidx], fileVerts[bidx], fileVerts[cidx]
+	a, b, c := textureVerts[aidx], textureVerts[bidx], textureVerts[cidx]
 	br, err := bary(a, b, c, x, y)
-	//TODO :finish this function (get texture color at "br", return...)
+	if err != nil {
+		//return 0
+	}
+	as := vscale(a, br[0])
+	bs := vscale(b, br[1])
+	cs := vscale(c, br[2])
+	pos := vadd(as, bs, cs)
+	return (textureAt(pos[0], pos[1]) & 0xffffff00)
 }

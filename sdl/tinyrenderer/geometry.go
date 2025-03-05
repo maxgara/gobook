@@ -23,27 +23,14 @@ var zpixeldebug bool
 
 // barycentric coordinates for pixel; err == nil if barycentric coordinates found and point is in the triangle.
 // err != nil if point is outside of triangle, but coordinates will still be correct.
-func bary(v0, v1, v2 F3, px [2]int) (F3, error) {
+func bary(v0, v1, v2 F3, px, py int) (F3, error) {
 	//translate triangle verts so v0 -> 0
 	u := vdiff(v1, v0)
 	w := vdiff(v2, v0)
-	//get z offset
-	z0 := v0[2]
 	//convert pixel to vert
-	pv := ptov(px)
-	if zpixeldebug {
-		fmt.Printf("ptov(%v)=%v\n", px, pv)
-	}
+	pv := ptov([2]int{px, py})
 	//shift to match v0,1,2; after this pv has z=-p0
 	pv = vdiff(pv, v0)
-	if zpixeldebug {
-		fmt.Printf("pv after xy shift: %v\n", pv)
-	}
-	if zpixeldebug {
-		fmt.Printf("zpixeldebug: vectors: u=<%v>, w=<%v>", u, w)
-		fmt.Printf("zpixeldebug: constant offset: v0=<%v>", v0)
-
-	}
 	a := u[0]
 	b := w[0]
 	c := u[1]
@@ -52,7 +39,7 @@ func bary(v0, v1, v2 F3, px [2]int) (F3, error) {
 	y := pv[1]
 	//make sure determinant is ! = 0
 	if a*d-b*c == 0 {
-		return 0, flatTriangleError
+		return F3{0, 0, 0}, flatTriangleError
 	}
 	det := 1 / (a*d - b*c)
 	//change 2D basis for pv from X,Y to u,v.
@@ -132,8 +119,12 @@ func vscale(u F3, c float64) F3 {
 }
 
 // add vectors
-func vadd(u, v F3) F3 {
-	return F3{u[0] + v[0], u[1] + v[1], u[2] + v[2]}
+func vadd(vecs ...F3) F3 {
+	var nv F3
+	for _, v := range vecs {
+		nv = F3{nv[0] + v[0], nv[1] + v[1], nv[2] + v[2]}
+	}
+	return nv
 }
 
 // invert vector

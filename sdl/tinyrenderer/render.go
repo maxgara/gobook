@@ -35,6 +35,8 @@ var fileVerts []F3
 var fileFaces [][3]int
 var textureVerts []F3
 var texture []uint32
+var texw, texh int
+var txxmin, txxmax, txymin, txymax float64
 var tstride int
 
 // var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
@@ -218,32 +220,22 @@ func main() {
 	texture, tstride = loadTexture("african_head_diffuse.tga")
 	for i, v := range fileVerts {
 		fileVerts[i] = xrot(v, xrotset)
-		//		fmt.Printf("vtop(%v)=%v\n", v, vtop(v))
 	}
 	testfunctions()
 	mainLoop()
 }
 
-// draw line between vertices
 func drawFrame(pix []byte) {
 	for _, f := range fileFaces {
 		i1, i2, i3 := f[0], f[1], f[2]
 		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
-		//b := pixelbox(v1, v2, v3)
 		globalcolor = RED
 		if wireframe {
 			vline(v1, v2, pix)
 			vline(v2, v3, pix)
 			vline(v3, v1, pix)
 		}
-		//vn1 := DynamicNormalForFace(v1, v2, v3)
-		//vn0 := vavg(v1, v2, v3)
-		//vline(vn0, vadd(vn0, vn1), pix)
 		triangleBoxShader(i1-1, i2-1, i3-1, pix, zmask)
-		//	DrawLine(b.x0, b.y0, b.x0, b.y1, GREEN|BLUE, pix)
-		//	DrawLine(b.x0, b.y1, b.x1, b.y1, GREEN|BLUE, pix)
-		//	DrawLine(b.x1, b.y1, b.x1, b.y0, GREEN|BLUE, pix)
-		//	DrawLine(b.x1, b.y0, b.x0, b.y0, GREEN|BLUE, pix)
 	}
 }
 func takeKeyboardInput() {
