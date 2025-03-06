@@ -13,16 +13,18 @@ import (
 )
 
 const (
-	width, height = 800, 800 //window dims
-	filename      = "african_head.obj"
+	width, height = 1600, 1600 //window dims
+	//filename      = "african_head.obj"
 	//filename = "square.obj"
-	delay   = 200
-	yrotd   = 0.01 // +y azis rotation per frame
-	xrotset = 0    // +x azis rotation
-	RED     = 0x0000ff00
-	GREEN   = 0x00ff0000
-	BLUE    = 0xff000000
-	ALPHA   = 0x000000ff
+	filename        = "tri.obj"
+	texturefilename = "african_head_diffuse.tga"
+	delay           = 200
+	yrotd           = 0.0 // +y azis rotation per frame
+	xrotset         = 0   // +x azis rotation
+	RED             = 0x0000ff00
+	GREEN           = 0x00ff0000
+	BLUE            = 0xff000000
+	ALPHA           = 0x000000ff
 )
 
 type F3 [3]float64
@@ -36,16 +38,17 @@ var fileFaces [][3]int
 var textureVerts []F3
 var texture []uint32
 var texw, texh int
-var txxmin, txxmax, txymin, txymax float64
+
+// var txxmin, txxmax, txymin, txymax float64
 var tstride int
 
 // var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
-var done bool //control program exit
+var done bool //control graceful program exit
 var loops uint64
 
 // var greyval float64
-var zbuff []float64
-var zmask []uint32
+var zbuff []float64 //not currently used?
+var zmask []uint32  //0xffffff00 where triangle is visible, otherwise 0x0
 var lightpos []F3
 var lightcolors []uint32
 var lightpower []float64
@@ -55,7 +58,7 @@ var shadingEnabled bool
 var cpuprofile bool
 var start time.Time
 var parallel int
-var zmaskp [][]uint32
+var zmaskp [][]uint32 //??? only used for parallel case
 var textureEnabled bool
 
 func update() {
@@ -91,7 +94,7 @@ func mainLoop() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//create blank surface to blit before redrawing
+	//create reusable blank surface to blit before redrawing
 	blanksurf, err := sdl.CreateRGBSurface(5, 800, 800, 32, 0, 0, 0, 0)
 	if err != nil {
 		log.Fatal(err)
@@ -100,7 +103,7 @@ func mainLoop() {
 	defer window.Destroy()
 
 	//benchmarking
-	benchStart()
+	//benchStart()
 
 	//parallel zmask arrays so that masks do not change while they are being referenced
 	if parallel > 1 {
@@ -121,7 +124,6 @@ func mainLoop() {
 		//sdl.Delay(delay)
 	}
 }
-
 func testfunctions() {
 	//test zpixel
 	//zpixeldebug = true
@@ -160,6 +162,7 @@ func testfunctions() {
 	for i := 0; i < height-1; i++ {
 		//fmt.Printf("zmask:%v\n", zmask[i*width:i*width+width])
 	}
+
 }
 func testDrawTextureImg(pix []byte) {
 	f, err := os.Open("african_head_diffuse.tga")
@@ -190,9 +193,9 @@ func testDrawTextureImg(pix []byte) {
 }
 func main() {
 	textureEnabled = true
-	parallel = 0
+	parallel = 0 //false
 	shadingEnabled = true
-	cpuprofile = true
+	cpuprofile = false
 	if cpuprofile {
 		f, err := os.Create("cpuprofile")
 		if err != nil {
@@ -201,42 +204,32 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-	//zbuff = make([]float64, width*height)
+	zbuff = make([]float64, width*height) //keep track of what's in front of scene
+
+	//set up zmask (reusable) and 1 light
 	zmask = make([]uint32, width*height+801)
 	lightpos = append(lightpos, F3{2, 2.5, 20})
-	lightpos = append(lightpos, F3{-2, 1.5, 2})
+	//lightpos = append(lightpos, F3{-2, 1.5, 2})
 	//lightpos = append(lightpos, F3{-2, -0.5, 2})
 	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
 	//lightpos = append(lightpos, F3{0, -3.5, 1.5})
 	lightcolors = append(lightcolors, RED|GREEN|BLUE)
-	lightcolors = append(lightcolors, GREEN|BLUE)
+	//lightcolors = append(lightcolors, GREEN|BLUE)
 	//lightcolors = append(lightcolors, RED)
 	//lightcolors = append(lightcolors, RED|GREEN)
 	lightpower = append(lightpower, 1)
-	lightpower = append(lightpower, 1)
+	//lightpower = append(lightpower, 1)
 	//lightpower = append(lightpower, 0.5)
 	//lightpower = append(lightpower, 0.5)
+
 	loadobjfile(filename)
 	texture, tstride = loadTexture("african_head_diffuse.tga")
 	for i, v := range fileVerts {
 		fileVerts[i] = xrot(v, xrotset)
 	}
-	testfunctions()
-	mainLoop()
-}
 
-func drawFrame(pix []byte) {
-	for _, f := range fileFaces {
-		i1, i2, i3 := f[0], f[1], f[2]
-		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
-		globalcolor = RED
-		if wireframe {
-			vline(v1, v2, pix)
-			vline(v2, v3, pix)
-			vline(v3, v1, pix)
-		}
-		triangleBoxShader(i1-1, i2-1, i3-1, pix, zmask)
-	}
+	//testfunctions()
+	mainLoop()
 }
 func takeKeyboardInput() {
 	if event := sdl.PollEvent(); event != nil {

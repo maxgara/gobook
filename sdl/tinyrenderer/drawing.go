@@ -1,13 +1,42 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+// draw a frame
+func drawFrame(pix []byte) {
+	for _, f := range fileFaces {
+		i1, i2, i3 := f[0], f[1], f[2]
+		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
+		globalcolor = RED
+		if wireframe {
+			vline(v1, v2, pix)
+			vline(v2, v3, pix)
+			vline(v3, v1, pix)
+		}
+		triangleBoxShader(i1-1, i2-1, i3-1, pix, zmask)
+	}
+}
+func testTextureAt(pix []byte) {
+	var count = 1000
+	for i := range count {
+		for j := range count {
+			x := float64(i) / float64(count)
+			y := float64(j) / float64(count)
+			color := textureAt(x, y) & 0xffffff00
+			fmt.Printf("color = %x\n", color)
+			putpixel(int(x*float64(width)), int(y*float64(height)), color, pix)
+		}
+	}
+}
+
+// draw a frame (high level)
 func draw(surf *sdl.Surface, blank *sdl.Surface) {
-	rect := sdl.Rect{0, 0, width, height} // {{{
+	rect := sdl.Rect{0, 0, width, height}
 	blank.Blit(&rect, surf, &rect)
 	for i := range zbuff {
 		zbuff[i] = -1000
@@ -16,12 +45,13 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	pix := surf.Pixels()
 	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
-	update()
+	//update()
 	if parallel > 1 {
 		//parallelDrawFrame(pix)
 	} else {
 		//testDrawTextureImg(pix)
-		drawFrame(pix)
+		testTextureAt(pix)
+		//drawFrame(pix)
 	}
 	surf.Unlock()
 	window.UpdateSurface() // }}}

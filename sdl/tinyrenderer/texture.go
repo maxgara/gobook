@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -25,7 +26,7 @@ func loadvtex(s string, tvs *[]F3) {
 	*tvs = append(*tvs, vt)
 }
 
-// load texture file
+// load texture file, output is an array of BGRA uint32 colors + the width of the image in pixels
 func loadTexture(fs string) (texture []uint32, tstride int) {
 	//f, err := os.Open("african_head_diffuse.tga")
 	f, err := os.Open(fs)
@@ -58,13 +59,15 @@ func loadTexture(fs string) (texture []uint32, tstride int) {
 	return texture, img.Bounds().Max.X - img.Bounds().Min.X
 }
 
-// get texture color at coordinates x,y.
+// get texture color at coordinates x,y in space of [0,1) X [0,1).
+// TODO: figure out why this is not working ( see testTextureAt )
 func textureAt(x, y float64) uint32 {
-	xidx := (x + 1) / 2 * float64(texw)
-	yidx := (y + 1) / 2 * float64(texh)
+	xidx := x * float64(texw)
+	yidx := y * float64(texh)
 	idx := xidx + yidx*float64(tstride)
 	//idx -= yidx * float64(tstride)
-	if int(idx) >= len(texture) {
+	if int(idx) < 0 || int(idx) >= len(texture) {
+		fmt.Printf("textureAt (%v %v) called\n", x, y)
 		panic("textureAt: texture coordinates out of bounds")
 	}
 	col := texture[int(idx)]
@@ -78,16 +81,23 @@ func textureFor(vidx int) uint32 {
 	return c
 }
 
-// stretch texture across triangle, map pixel (x,y) to color
+// gets texture color for pixel x,y in space of screen, based on texture coordinates of triangle ABC (where x,y should fall on ABC)
 func interpTexture(aidx, bidx, cidx, x, y int) uint32 {
+	//get triangle in texture space
 	a, b, c := textureVerts[aidx], textureVerts[bidx], textureVerts[cidx]
-	br, err := bary(a, b, c, x, y)
+	//get triangle in screen space
+	va, vb, vc := fileVerts[aidx], fileVerts[bidx], fileVerts[cidx]
+	//fmt.Printf("textureVerts for %v %v %v are\n %v\n %v\n %v\n", aidx, bidx, cidx, a, b, c)
+	//balance vertices in screen space to get (x,y)
+	br, err := bary(va, vb, vc, x, y)
 	if err != nil {
 		//return 0
 	}
+	//project new linear combination of vertices into texture space
 	as := vscale(a, br[0])
 	bs := vscale(b, br[1])
 	cs := vscale(c, br[2])
 	pos := vadd(as, bs, cs)
+	//fmt.Printf("pixel %v %v falls within this triangle in screen-space, and has barycentric coordinates which when combined yield new texture-space point %v %v\n", x, y, pos[0], pos[1])
 	return (textureAt(pos[0], pos[1]) & 0xffffff00)
 }
