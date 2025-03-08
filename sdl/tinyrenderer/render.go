@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	width, height = 1600, 1600 //window dims
+	width, height = 800, 800 //window dims
 	//filename      = "african_head.obj"
 	//filename = "square.obj"
 	filename        = "tri.obj"
-	texturefilename = "african_head_diffuse.tga"
-	delay           = 200
-	yrotd           = 0.0 // +y azis rotation per frame
-	xrotset         = 0   // +x azis rotation
+	//texturefilename = "african_head_diffuse.tga"
+	delay           = 10
+	yrotd           = 0.00 // +y azis rotation per frame
+	xrotset         = 0    // +x azis rotation
 	RED             = 0x0000ff00
 	GREEN           = 0x00ff0000
 	BLUE            = 0xff000000
@@ -71,6 +71,7 @@ func update() {
 		fileVerts[i] = v
 	}
 	//greyval -= 0.001
+	//this is a test
 }
 func benchStart() {
 	start = time.Now()
@@ -211,15 +212,11 @@ func main() {
 	lightpos = append(lightpos, F3{2, 2.5, 20})
 	//lightpos = append(lightpos, F3{-2, 1.5, 2})
 	//lightpos = append(lightpos, F3{-2, -0.5, 2})
-	//lightpos = append(lightpos, F3{0, 3.5, 1.5})
-	//lightpos = append(lightpos, F3{0, -3.5, 1.5})
 	lightcolors = append(lightcolors, RED|GREEN|BLUE)
 	//lightcolors = append(lightcolors, GREEN|BLUE)
 	//lightcolors = append(lightcolors, RED)
-	//lightcolors = append(lightcolors, RED|GREEN)
 	lightpower = append(lightpower, 1)
 	//lightpower = append(lightpower, 1)
-	//lightpower = append(lightpower, 0.5)
 	//lightpower = append(lightpower, 0.5)
 
 	loadobjfile(filename)
@@ -241,10 +238,10 @@ func takeKeyboardInput() {
 			switch event.Keysym.Scancode {
 			case 20: //q
 				done = true
-			case 82: //up
-			case 81: //down
-			case 80: //left
-			case 79: //right
+			case 82: //up arrow
+			case 81: //down arrow
+			case 80: //left arrow
+			case 79: //right arrow
 			case 26: //'w'
 				wireframe = !wireframe
 			case 6: //'c'

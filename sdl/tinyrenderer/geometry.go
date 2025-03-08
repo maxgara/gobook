@@ -49,7 +49,7 @@ func bary(v0, v1, v2 F3, px, py int) (F3, error) {
 	// third barycentric coordinate (normalized so the at Sum = 1)
 	c0 := 1 - cu - cw
 	// if we are outside the triangle, return an error but also include the correct barycentric coordinates
-	if cu < 0 || cw < 0 || cu+cw > 1 {
+	if cu < 0 || cw < 0 || c0 < 0 {
 		return F3{c0, cu, cw}, offTriangleError
 	}
 	return F3{c0, cu, cw}, nil

@@ -7,6 +7,20 @@ import (
 	"strings"
 )
 
+// load texture vertex from string
+func loadvtex(s string, tvs *[]F3) {
+	fs := strings.Fields(s)
+	var vt F3
+	for i, coordstr := range fs[1:] {
+		coord, err := strconv.ParseFloat(coordstr, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		vt[i] = coord
+	}
+	*tvs = append(*tvs, vt)
+}
+
 // load vertex from string
 func loadVertex(s string, verts *[]F3) {
 	fs := strings.Fields(s)
@@ -20,6 +34,8 @@ func loadVertex(s string, verts *[]F3) {
 	}
 	*verts = append(*verts, vt)
 }
+
+// load face from string
 func loadface(s string, faces *[][3]int) {
 	fs := strings.Fields(s)
 	var f [3]int

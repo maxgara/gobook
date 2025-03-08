@@ -21,6 +21,15 @@ func drawFrame(pix []byte) {
 		triangleBoxShader(i1-1, i2-1, i3-1, pix, zmask)
 	}
 }
+func testInterpText(pix []byte) {
+	for i := range width {
+		for j := range height {
+			color := interpTexture(0, 1, 2, i, j)
+			//fmt.Printf("color = %x\n", color)
+			putpixel(i, j, color, pix)
+		}
+	}
+}
 func testTextureAt(pix []byte) {
 	var count = 1000
 	for i := range count {
@@ -45,13 +54,14 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	pix := surf.Pixels()
 	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
-	//update()
+	update()
 	if parallel > 1 {
 		//parallelDrawFrame(pix)
 	} else {
 		//testDrawTextureImg(pix)
-		testTextureAt(pix)
-		//drawFrame(pix)
+		//testTextureAt(pix)
+		//testInterpText(pix)
+		drawFrame(pix)
 	}
 	surf.Unlock()
 	window.UpdateSurface() // }}}
@@ -102,7 +112,7 @@ func triangleBoxShader(aidx, bidx, cidx int, pix []byte, zmask []uint32) {
 			//lightConts = (RED | GREEN | BLUE) & maskval
 			putpixel(i, j, lightConts, pix)
 		}
-	} // }}}
+	}
 }
 
 // build a zmask for v0,v1,v2
