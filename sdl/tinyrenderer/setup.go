@@ -8,7 +8,7 @@ import (
 )
 
 // load texture vertex from string
-func loadvtex(s string, tvs *[]F3) {
+func loadTextureVertex(s string, tvs *[]F3) {
 	fs := strings.Fields(s)
 	var vt F3
 	for i, coordstr := range fs[1:] {
@@ -36,18 +36,28 @@ func loadVertex(s string, verts *[]F3) {
 }
 
 // load face from string
-func loadface(s string, faces *[][3]int) {
+func loadface(s string, faces *[]Face) {
 	fs := strings.Fields(s)
-	var f [3]int
+	var face Face
+	var vidxs [3]int //face vert idxs
+	var tidxs [3]int //face texture-vert idxs
 	for i, field := range fs[1:] {
-		idxstr := strings.Split(field, "/")[0]
-		fidx, err := strconv.ParseInt(idxstr, 10, 32)
+		vidxstr := strings.Split(field, "/")[0] //vertex index
+		tidxstr := strings.Split(field, "/")[1] //texture vertex index
+		vidx, err := strconv.ParseInt(vidxstr, 10, 32)
 		if err != nil {
 			log.Fatal(err)
 		}
-		f[i] = int(fidx)
+		tidx, err := strconv.ParseInt(tidxstr, 10, 32)
+		if err != nil {
+			log.Fatal(err)
+		}
+		vidxs[i] = int(vidx)
+		tidxs[i] = int(tidx)
 	}
-	*faces = append(*faces, f)
+	face.vidx = vidxs
+	face.tidx = tidxs
+	*faces = append(*faces, face)
 }
 func loadobjfile(filename string) {
 	f, err := os.ReadFile(filename)
@@ -59,11 +69,11 @@ func loadobjfile(filename string) {
 	for _, v := range s {
 		switch {
 		case strings.HasPrefix(v, "v "):
-			loadVertex(v, &fileVerts)
+			loadVertex(v, &verts)
 		case strings.HasPrefix(v, "f "):
-			loadface(v, &fileFaces)
+			loadface(v, &faces)
 		case strings.HasPrefix(v, "vt "):
-			loadvtex(v, &textureVerts)
+			loadTextureVertex(v, &textureVerts)
 		}
 	}
 }

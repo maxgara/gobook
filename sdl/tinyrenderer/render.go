@@ -14,13 +14,13 @@ import (
 
 const (
 	width, height = 800, 800 //window dims
-	//filename      = "african_head.obj"
+	filename      = "african_head.obj"
 	//filename = "square.obj"
-	filename        = "tri.obj"
-	//texturefilename = "african_head_diffuse.tga"
+	//filename        = "tri.obj"
+	texturefilename = "african_head_diffuse.tga"
 	delay           = 10
-	yrotd           = 0.00 // +y azis rotation per frame
-	xrotset         = 0    // +x azis rotation
+	yrotd           = 0.010 // +y azis rotation per frame
+	xrotset         = 0     // +x azis rotation
 	RED             = 0x0000ff00
 	GREEN           = 0x00ff0000
 	BLUE            = 0xff000000
@@ -28,19 +28,44 @@ const (
 )
 
 type F3 [3]float64
+type Face struct {
+	vidx [3]int //vertex indices (in vertices global array)
+	tidx [3]int //texture-vertex indices (in textureVertices global array)
+}
+
+// get vertices for face
+func (f *Face) V() [3]F3 {
+	var v [3]F3
+	for i := range 3 {
+		idx := f.vidx[i]
+		v[i] = verts[idx-1]
+	}
+	return v
+}
+
+// get texture vertices for face
+func (f *Face) T() [3]F3 {
+	var t [3]F3
+	for i := range 3 {
+		idx := f.tidx[i]
+		t[i] = textureVerts[idx-1]
+	}
+	return t
+}
 
 var window *sdl.Window
 
 var wireframe bool
 var file *os.File
-var fileVerts []F3
-var fileFaces [][3]int
+var verts []F3
+var faces []Face
+var texFaces [][3]int
 var textureVerts []F3
 var texture []uint32
 var texw, texh int
 
 // var txxmin, txxmax, txymin, txymax float64
-var tstride int
+//var tstride int
 
 // var fileFaceNorms []F3 // normal vector for each face (normalized to 1)
 var done bool //control graceful program exit
@@ -62,13 +87,13 @@ var zmaskp [][]uint32 //??? only used for parallel case
 var textureEnabled bool
 
 func update() {
-	for i := range fileVerts {
-		v := fileVerts[i]
+	for i := range verts {
+		v := verts[i]
 		v = yrot(v, yrotd)
 		for j := range lightpos {
 			lightpos[j] = xrot(lightpos[j], lightrot)
 		}
-		fileVerts[i] = v
+		verts[i] = v
 	}
 	//greyval -= 0.001
 	//this is a test
@@ -103,16 +128,6 @@ func mainLoop() {
 
 	defer window.Destroy()
 
-	//benchmarking
-	//benchStart()
-
-	//parallel zmask arrays so that masks do not change while they are being referenced
-	if parallel > 1 {
-		zmaskp = make([][]uint32, parallel)
-		for i := range zmaskp {
-			zmaskp[i] = make([]uint32, width*height+801)
-		}
-	}
 	//draw loop
 	for {
 		loops++
@@ -220,9 +235,9 @@ func main() {
 	//lightpower = append(lightpower, 0.5)
 
 	loadobjfile(filename)
-	texture, tstride = loadTexture("african_head_diffuse.tga")
-	for i, v := range fileVerts {
-		fileVerts[i] = xrot(v, xrotset)
+	texture = loadTexture(texturefilename)
+	for i, v := range verts {
+		verts[i] = xrot(v, xrotset)
 	}
 
 	//testfunctions()

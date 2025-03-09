@@ -9,22 +9,25 @@ import (
 
 // draw a frame
 func drawFrame(pix []byte) {
-	for _, f := range fileFaces {
-		i1, i2, i3 := f[0], f[1], f[2]
-		v1, v2, v3 := fileVerts[i1-1], fileVerts[i2-1], fileVerts[i3-1]
+	for _, f := range faces {
+		vs := f.V()
+		v1, v2, v3 := vs[0], vs[1], vs[2]
 		globalcolor = RED
 		if wireframe {
 			vline(v1, v2, pix)
 			vline(v2, v3, pix)
 			vline(v3, v1, pix)
 		}
-		triangleBoxShader(i1-1, i2-1, i3-1, pix, zmask)
+		triangleBoxShader(&f, pix, zmask)
 	}
 }
 func testInterpText(pix []byte) {
+	var f Face
+	f.vidx = [3]int{0, 1, 2}
+	f.tidx = [3]int{0, 1, 2}
 	for i := range width {
 		for j := range height {
-			color := interpTexture(0, 1, 2, i, j)
+			color := interpTexture(&f, i, j)
 			//fmt.Printf("color = %x\n", color)
 			putpixel(i, j, color, pix)
 		}
@@ -55,24 +58,19 @@ func draw(surf *sdl.Surface, blank *sdl.Surface) {
 	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
 	// fmt.Println(pix)
 	update()
-	if parallel > 1 {
-		//parallelDrawFrame(pix)
-	} else {
-		//testDrawTextureImg(pix)
-		//testTextureAt(pix)
-		//testInterpText(pix)
-		drawFrame(pix)
-	}
+	//testDrawTextureImg(pix)
+	//testTextureAt(pix)
+	//testInterpText(pix)
+	drawFrame(pix)
 	surf.Unlock()
 	window.UpdateSurface() // }}}
 }
 
 // triangle drawing func, does z-buffering.
 // zmask is scratch space for computing visible pixels, does not need to be zeroed-out but cannot be changed concurrently with this function.
-func triangleBoxShader(aidx, bidx, cidx int, pix []byte, zmask []uint32) {
-	a := fileVerts[aidx]
-	b := fileVerts[bidx]
-	c := fileVerts[cidx]
+func triangleBoxShader(f *Face, pix []byte, zmask []uint32) {
+	v := f.V()
+	a, b, c := v[0], v[1], v[2]
 	tbox := pixelbox(a, b, c) // {{{
 	err := zpixelboxmask(a, b, c, zmask)
 	if err != nil {
@@ -104,7 +102,7 @@ func triangleBoxShader(aidx, bidx, cidx int, pix []byte, zmask []uint32) {
 				//estimate texture color by using color at vertex 1.
 				//TODO: replace this with extrapolation using barycentric cs.
 				//texturecolor := textureFor(aidx)
-				texturecolor := interpTexture(aidx, bidx, cidx, i, j)
+				texturecolor := interpTexture(f, i, j)
 				lightConts = texturecolor
 				//v0col :=
 			}

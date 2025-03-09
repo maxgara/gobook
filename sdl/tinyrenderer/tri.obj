@@ -1,22 +1,25 @@
 
-v -0.99 -0.99 0 
-v 0.99 -0.99 0
-v -0.99 0.99 0
+v -0.99 -0.99 0.00
+v 0.99 -0.99 0.00
+v -0.99 0.99 0.00
 
-v 0.99 0.99 0
-v 0.99 -0.99 0
-v 0 0.99 0
+v 0.99 0.99 0.00
+v 0.99 -0.99 0.00
+v -0.99 0.99 0.00
 # 6 vertices
 
 #top left half texture vertices
-vt 0 0 0 
-vt 0.99 0 0
-vt 0 0.99 0
+vt 0.00 0.00 0
+vt 0.99 0.00 0
+vt 0.00 0.99 0
 
-#mirror image on bottom left
-vt 0 0 0 
-vt 0.99 0 0
-vt 0 0.99 0
+#mirror image on bottom right
+#vt 0 0 0
+#vt 0 0 0
+#vt 0 0 0
+vt 0.99 0.99 0 
+vt 0.99 0.00 0
+vt 0.00 0.99 0
 # 6 texture vertices
 
 #vn  0.000.5.482 -0.576
@@ -25,7 +28,7 @@ vt 0 0.99 0
 g head
 s 1
 f 1/1/24 2/2/25 3/3/26
-f 3/1/24 4/2/25 5/3/26
+f 4/4/24 5/5/25 6/6/26
 #top left and then top left mirrored
 #f 1/1/24 3/2/25 4/3/26
 #
