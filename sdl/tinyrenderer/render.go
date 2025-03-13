@@ -18,7 +18,7 @@ const (
 	//filename = "square.obj"
 	//filename        = "tri.obj"
 	texturefilename = "african_head_diffuse.tga"
-	delay           = 10    //delay between update calls
+	delay           = 0     //delay between update calls
 	yrotd           = 0.010 // +y azis rotation per frame
 	xrotset         = 0     // +x azis rotation
 	ALPHA           = 0x000000ff
@@ -79,7 +79,7 @@ func (f *Face) TexAt(x, y int) uint32 {
 	v0, v1, v2 := vs[0], vs[1], vs[2]
 	vx := b[0]*v0[0] + b[1]*v1[0] + b[2]*v2[0]
 	vy := b[0]*v0[1] + b[1]*v1[1] + b[2]*v2[1]
-	return textureAt(vx, vy)
+	return textureAt(1-vy, vx)
 }
 
 // get vertices for face

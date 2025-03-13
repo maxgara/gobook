@@ -93,12 +93,21 @@ func drawFace(f *Face, pix []byte) {
 	n := f.Norm()
 	fillMask(pbox, pix)
 	//TODO: update this
+	for i := pbox.x0; i <= pbox.x1; i++ {
+		for j := pbox.y0; j <= pbox.y1; j++ {
+			if zmask[i+j*width] == 0 {
+				continue
+			}
+			c := f.TexAt(i, j)
+			putpixel(i, j, c, pix)
+		}
+	}
 	return
 	// calculate face normal for lighting
 	var lightConts uint32
 	for lidx, src := range lightpos {
 		pow := lightpower[lidx]
-		intensity := greyscale(dot(vn1, src) * pow)
+		intensity := greyscale(dot(n, src) * pow)
 		col := lightcolors[lidx]
 		if !colorEnabled {
 			col = RED | GREEN | BLUE
