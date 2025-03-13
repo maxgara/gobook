@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
@@ -26,6 +27,7 @@ func main() {
 }
 
 func lissajous(out io.Writer) {
+  fmt.Printf(, a ...any)
 	const (
 		cycles  = 5
 		res     = 0.001

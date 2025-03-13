@@ -31,6 +31,7 @@ func ForEachNode(n *html.Node, pre, post func(n *html.Node) error) error {
 		err = post(n)
 	}
 	if err != nil {
+    fmt.Printf(, a ...any)
 		return fmt.Errorf("forEachNode: post: %v(%v):%v", post, n, err)
 	}
 	return nil
