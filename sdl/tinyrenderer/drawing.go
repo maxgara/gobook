@@ -2,25 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-// draw a frame
-func drawFrame(pix []byte) {
-	for _, f := range faces {
-		vs := f.V()
-		v1, v2, v3 := vs[0], vs[1], vs[2]
-		globalcolor = RED
-		if wireframe {
-			vline(v1, v2, pix)
-			vline(v2, v3, pix)
-			vline(v3, v1, pix)
-		}
-		triangleBoxShader(&f, pix, zmask)
-	}
-}
 func testInterpText(pix []byte) {
 	var f Face
 	f.vidx = [3]int{0, 1, 2}
@@ -28,13 +13,14 @@ func testInterpText(pix []byte) {
 	for i := range width {
 		for j := range height {
 			color := interpTexture(&f, i, j)
-			//fmt.Printf("color = %x\n", color)
+			// fmt.Printf("color = %x\n", color)
 			putpixel(i, j, color, pix)
 		}
 	}
 }
+
 func testTextureAt(pix []byte) {
-	var count = 1000
+	count := 1000
 	for i := range count {
 		for j := range count {
 			x := float64(i) / float64(count)
@@ -46,37 +32,69 @@ func testTextureAt(pix []byte) {
 	}
 }
 
-// draw a frame (high level)
-func draw(surf *sdl.Surface, blank *sdl.Surface) {
+// draw a frame
+func drawFrame(surf *sdl.Surface, blank *sdl.Surface) {
+	//clear screen
 	rect := sdl.Rect{0, 0, width, height}
 	blank.Blit(&rect, surf, &rect)
+	//reset zbuffer
 	for i := range zbuff {
 		zbuff[i] = -1000
 	}
+	//get pixels
 	surf.Lock()
 	pix := surf.Pixels()
-	//DrawLine(0, 0, width, height, greyscale(greyval), pix)
-	// fmt.Println(pix)
-	update()
-	//testDrawTextureImg(pix)
-	//testTextureAt(pix)
-	//testInterpText(pix)
-	drawFrame(pix)
+	//draw
+	for _, f := range faces {
+		if wireframe {
+			wireframeFace(&f, pix)
+		}
+		drawFace(&f, pix)
+	}
+	//done drawing, set up window for display
 	surf.Unlock()
-	window.UpdateSurface() // }}}
+	window.UpdateSurface()
 }
 
-// triangle drawing func, does z-buffering.
-// zmask is scratch space for computing visible pixels, does not need to be zeroed-out but cannot be changed concurrently with this function.
-func triangleBoxShader(f *Face, pix []byte, zmask []uint32) {
+func wireframeFace(f *Face, pix []byte) {
+	//get vertices
+	vs := f.V()
+	v1, v2, v3 := vs[0], vs[1], vs[2]
+	globalcolor = RED
+	vline(v1, v2, pix)
+	vline(v2, v3, pix)
+	vline(v3, v1, pix)
+}
+
+// draw pixels where mask=1, for pixels contained by b
+func fillMask(b box, pix []byte) {
+	var i, j int
+	for i = b.x0; i <= b.x1; i++ {
+		for j = b.y0; j <= b.y1; j++ {
+			midx := i + width*j
+			if zmask[midx] == 0 {
+				continue
+			}
+			putpixel(i, j, GREEN, pix)
+		}
+	}
+}
+
+// draw a face onto surface pixels
+func drawFace(f *Face, pix []byte) {
+	// get vertices for face
 	v := f.V()
 	a, b, c := v[0], v[1], v[2]
-	tbox := pixelbox(a, b, c) // {{{
-	err := zpixelboxmask(a, b, c, zmask)
-	if err != nil {
-		log.Fatal(err)
-	}
-	vn1 := DynamicNormalForFace(a, b, c)
+	//select pixels to be considered based on face bounds
+	pbox := pixelbox(a, b, c)
+	// populate zmask buffer
+	f.getMask(pbox)
+	//fill solid color in where mask != 0
+	n := f.Norm()
+	fillMask(pbox, pix)
+	//TODO: update this
+	return
+	// calculate face normal for lighting
 	var lightConts uint32
 	for lidx, src := range lightpos {
 		pow := lightpower[lidx]
@@ -86,97 +104,58 @@ func triangleBoxShader(f *Face, pix []byte, zmask []uint32) {
 			col = RED | GREEN | BLUE
 		}
 		lightConts = intensity & col
+		// TODO: put pixel drawing code here, so more than one light can be drawn
 	}
 
 	if !shadingEnabled {
 		return
 	}
-	for i := tbox.x0; i <= tbox.x1; i++ {
-		for j := tbox.y0; j <= tbox.y1; j++ {
-			//putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
+	for i := pbox.x0; i <= pbox.x1; i++ {
+		for j := pbox.y0; j <= pbox.y1; j++ {
+			// putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
 			maskval := zmask[i+width*j]
 			if maskval == 0 {
 				continue
 			}
 			if textureEnabled {
-				//estimate texture color by using color at vertex 1.
-				//TODO: replace this with extrapolation using barycentric cs.
-				//texturecolor := textureFor(aidx)
+				// estimate texture color by using color at vertex 1.
+				// TODO: replace this with extrapolation using barycentric cs.
+				// texturecolor := textureFor(aidx)
 				texturecolor := interpTexture(f, i, j)
 				lightConts = texturecolor
-				//v0col :=
+				// v0col :=
 			}
 			lightConts = lightConts & maskval
-			//lightConts = (RED | GREEN | BLUE) & maskval
+			// lightConts = (RED | GREEN | BLUE) & maskval
 			putpixel(i, j, lightConts, pix)
 		}
 	}
 }
 
-// build a zmask for v0,v1,v2
-func zpixelboxmask(v0, v1, v2 F3, zmask []uint32) (err error) {
-	//get bounding box to draw in{{{
-	bds := pixelbox(v0, v1, v2)
-	//create pixel square to blit
-	//translate triangle verts so v0 -> 0
-	u := vdiff(v1, v0)
-	w := vdiff(v2, v0)
-	//get z offset
-	z0 := v0[2]
-
-	a := u[0]
-	b := w[0]
-	c := u[1]
-	d := w[1]
-	//make sure determinant is ! = 0
-	if a*d-b*c == 0 {
-		return nil
-	}
-	det := 1 / (a*d - b*c)
-	//get z-pixel values
+// build a zmask for face based on existing zbuffer, restricted to pixels in b
+func (f *Face) getMask(b box) {
+	// get z-pixel values
 	var i, j int
-	for i = bds.x0; i <= bds.x1; i++ {
-		for j := bds.y0; j <= bds.y1; j++ {
+	for i = b.x0; i <= b.x1; i++ {
+		for j = b.y0; j <= b.y1; j++ {
+			_, z, err := f.Project(i, j)
+			// get masking index
 			midx := i + j*width
-			zmask[midx] = 0
-		}
-	}
-	for i = bds.x0; i <= bds.x1; i++ {
-		for j = bds.y0; j <= bds.y1; j++ {
-			//convert pixel to vert
-			px := [2]int{i, j}
-			pv := ptov(px)
-			//shift to match v0,1,2
-			pv = vdiff(pv, v0)
-			x := pv[0]
-			y := pv[1]
-			//change 2D basis for pv from X,Y to u,v.
-			//(calculate coefficients for vectors v,w relative to z0)
-			//make sure pv is inside of the triangle
-			cu := d*det*x - b*det*y
-			cw := -c*det*x + a*det*y
-			//get masking index
-			midx := i + j*width
-			//make sure px is inside of the triangle
-			if cu < 0 || cw < 0 || cu+cw > 1 {
-				//	zmask[midx] = 0
-				//do not continue down y-axis once we have left the triangle
+			// skip pixels which are not inside of this face
+			if err != nil {
+				zmask[midx] = 0x0
 				continue
 			}
-			//if there is a triangle in front of the current position, don't draw
-			z := z0 + u[2]*cu + w[2]*cw
+			// skip pixels where another triangle is in front of this face
 			if zbuff[midx] > z {
-				//zmask[midx] = 0
+				zmask[midx] = 0x0
 				continue
 			}
+			//update mask, zbuffer to show position where this triangle is currently in front
+			zmask[midx] = 0x1
 			zbuff[midx] = z
-			//set mask color bits for pixels where triangle should be drawn
-			zmask[midx] = RED | GREEN | BLUE
-
 		}
-
 	}
-	return nil // }}}
 }
 
 // draw line between vertices
@@ -231,9 +210,11 @@ func greyscale(i float64) uint32 {
 	b := uint32(i*BLUE) & BLUE
 	return r | b | g // }}}
 }
+
+// put pixel with color in pixels array at pos x,y
 func putpixel(x, y int, color uint32, pixels []byte) {
-	if x >= width || y >= height || x < 0 || y < 0 { // {{{
-		//fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
+	if x >= width || y >= height || x < 0 || y < 0 {
+		// fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
 		return
 	}
 	idx := 4 * (x + width*y)
@@ -244,5 +225,5 @@ func putpixel(x, y int, color uint32, pixels []byte) {
 	pixels[idx] = b
 	pixels[idx+1] = g
 	pixels[idx+2] = r
-	pixels[idx+3] = a // }}}
+	pixels[idx+3] = a
 }

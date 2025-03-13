@@ -49,11 +49,8 @@ func loadTexture(fs string) (texture []uint32) {
 // TODO: figure out why this is not working ( see testTextureAt )
 // seems like the x,y are swapped AND the y is inverted?
 func textureAt(x, y float64) uint32 {
-	y = 1 - y
-	xidx := int(x * float64(texw))
-	yidx := int(y * float64(texh))
-	xidx, yidx = yidx, xidx //experiment. TODO REMOVE THIS LINE
-	//yidx = texh - yidx      //experiment. TODO remove this line.
+	xidx := int(x * float64(texw-1))
+	yidx := int(y * float64(texh-1))
 	idx := int(xidx + yidx*texw)
 	if idx < 0 || idx >= len(texture) {
 		fmt.Printf("textureAt (%v %v) called\n", x, y)

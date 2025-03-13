@@ -16,19 +16,21 @@ import (
 )
 
 const (
-	width, height = 800, 800 //window dims
+	width, height = 800, 800 // window dims
 	// filename      = "square.obj"
 	filename = "african_head.obj"
 	delay    = 25
 )
 
-var wireframe bool
-var file *os.File
-var fileVerts []vert
-var fileFaces []face
-var filebounds struct {
-	xmin, xmax, ymin, ymax float64
-}
+var (
+	wireframe  bool
+	file       *os.File
+	fileVerts  []vert
+	fileFaces  []face
+	filebounds struct {
+		xmin, xmax, ymin, ymax float64
+	}
+)
 
 func main() {
 	vec1 := [3]float64{1, 0, 0}
@@ -53,8 +55,10 @@ func main() {
 	setupAndDraw()
 }
 
-type vert [3]float64
-type face = [3]int
+type (
+	vert [3]float64
+	face = [3]int
+)
 
 // load vertex from string
 func loadVertex(s string, verts *[]vert) {
@@ -67,7 +71,7 @@ func loadVertex(s string, verts *[]vert) {
 		}
 		vt[i] = coord
 	}
-	//adjust bounds
+	// adjust bounds
 	b := &filebounds
 	b.xmax = max(b.xmax, vt[0])
 	b.xmin = min(b.xmin, vt[0])
@@ -75,6 +79,7 @@ func loadVertex(s string, verts *[]vert) {
 	b.ymin = min(b.ymin, vt[1])
 	*verts = append(*verts, vt)
 }
+
 func loadface(s string, faces *[]face) {
 	fs := strings.Fields(s)
 	var f face
@@ -88,6 +93,7 @@ func loadface(s string, faces *[]face) {
 	}
 	*faces = append(*faces, f)
 }
+
 func loadobjfile(filename string) (verts []vert, faces []face) {
 	f, err := os.ReadFile(filename)
 	if err != nil {
@@ -110,15 +116,16 @@ func loadobjfile(filename string) (verts []vert, faces []face) {
 // convert vertices to pixels
 func vtop(v vert) (p [3]int) {
 	for i := range 3 {
-		vadj := ((v[i] + 1) / 2) //adjust so v >= 0
+		vadj := ((v[i] + 1) / 2) // adjust so v >= 0
 		scale := min(width, height)
 		p[i] = int(float64(scale) * vadj)
 	}
 	return p
 }
+
 func vtop2(v vert) (p [2]int) {
 	for i := range 2 {
-		vadj := ((v[i] + 1) / 2) //adjust so v >= 0
+		vadj := ((v[i] + 1) / 2) // adjust so v >= 0
 		scale := min(width, height)
 		p[i] = int(float64(scale) * vadj)
 	}
@@ -137,6 +144,7 @@ func rotateVert(v vert, t float64) vert {
 	z1 := z*ct - x*st
 	return vert{x1, y1, z1}
 }
+
 func update() {
 	for i := range fileVerts {
 		v := fileVerts[i]
@@ -149,7 +157,7 @@ func update() {
 func draw(pixels []byte) {
 	// fillztriangle(vert{0, 0, 1}, vert{1, 0, 1}, vert{1, 1, 1}, pixels)
 	// return
-	//simpler line drawing func for convenience
+	// simpler line drawing func for convenience
 	// line := func(x0, y0, x1, y1 int) {
 	// 	DrawLine(x0, y0, x1, y1, pixels)
 	// }
@@ -169,14 +177,14 @@ func draw(pixels []byte) {
 		fillTriangle(p0, p1, p2, pixels)
 	}
 
-	//draw triangle solid fill
+	// draw triangle solid fill
 	for _, f := range fileFaces {
 		vidx0, vidx1, vidx2 := f[0], f[1], f[2]
 		v0, v1, v2 := fileVerts[vidx0-1], fileVerts[vidx1-1], fileVerts[vidx2-1]
 		fill3(v0, v1, v2)
 		// fillztriangle(v0, v1, v2, pixels)
 	}
-	//draw wireframe
+	// draw wireframe
 	if wireframe {
 		for _, f := range fileFaces {
 			vidx0, vidx1, vidx2 := f[0], f[1], f[2]
@@ -188,10 +196,11 @@ func draw(pixels []byte) {
 		}
 	}
 }
+
 func DrawLine(x0, y0, x1, y1 int, pixels []byte) {
 	// var color uint32 = 0x0000ff00
 	var color uint32 = 0xff000000
-	//x_i=x0 + i*(x1-x0)/N
+	// x_i=x0 + i*(x1-x0)/N
 	if x1 < x0 {
 		x0, x1 = x1, x0
 		y0, y1 = y1, y0
@@ -228,6 +237,7 @@ func DrawLine(x0, y0, x1, y1 int, pixels []byte) {
 		putpixel(x, y, color, pixels)
 	}
 }
+
 func putpixel(x, y int, color uint32, pixels []byte) {
 	if x >= width || y >= height || x < 0 || y < 0 {
 		return
@@ -244,7 +254,6 @@ func putpixel(x, y int, color uint32, pixels []byte) {
 }
 
 func setupAndDraw() {
-
 	var window *sdl.Window
 	var winTitle string = "TinyRenderer"
 	window, err := sdl.CreateWindow(winTitle, sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
@@ -256,7 +265,7 @@ func setupAndDraw() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//blank surface to blit before redrawing
+	// blank surface to blit before redrawing
 	// blanksurf, err := sdl.CreateRGBSurface(5, 800, 800, 32, 0, 0, 0, 0)
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -264,7 +273,7 @@ func setupAndDraw() {
 
 	defer window.Destroy()
 
-	//benchmarking
+	// benchmarking
 	var dur time.Duration
 	start := time.Now()
 	var done bool
@@ -278,7 +287,7 @@ func setupAndDraw() {
 
 	var loops uint64
 
-	//draw loop
+	// draw loop
 	for {
 		loops++
 		// rect := sdl.Rect{0, 0, width, height}
@@ -317,13 +326,13 @@ func setupAndDraw() {
 				}
 				fmt.Printf("event.Keysym.Scancode: %v %[1]c\n", event.Keysym.Scancode)
 				switch event.Keysym.Scancode {
-				case 20: //q
+				case 20: // q
 					dur = time.Since(start)
 					done = true
-				case 82: //up
-				case 81: //down
-				case 80: //left
-				case 79: //right
+				case 82: // up
+				case 81: // down
+				case 80: // left
+				case 79: // right
 				case 26: //'w'
 					wireframe = !wireframe
 				}
@@ -415,13 +424,13 @@ func fillTriangle(p0, p1, p2 [2]int, pix []byte) {
 	for i := box.xmin; i < box.xmax; i++ {
 		for j := box.ymin; j < box.ymax; j++ {
 			// fmt.Printf("looping: i=%v j=%v box=%v\n", i, j, box)
-			//offset X to be a vector w/r/t p0
+			// offset X to be a vector w/r/t p0
 			X := [2]float64{float64(i - p0[0]), float64(j - p0[1])}
 			b := bary(u, v, X)
 			// fmt.Printf("\tbary= %v %v", b[0], b[1])
 			// mag := math.Hypot(b[0], b[1])
 			mag := b[0] + b[1]
-			//check if b is in triangle made up of vectors u,v
+			// check if b is in triangle made up of vectors u,v
 			if b[0] < 0 || b[1] < 0 || mag > 1 {
 				continue
 			}
@@ -446,14 +455,14 @@ func fillztriangle(v0, v1, v2 vert, pix []byte) {
 			// fmt.Printf("\tbary= %v %v", b[0], b[1])
 			// mag := math.Hypot(b[0], b[1])
 			mag := b[0] + b[1]
-			//check if b is in triangle made up of vectors u,v
+			// check if b is in triangle made up of vectors u,v
 			if b[0] < 0 || b[1] < 0 || mag > 1 {
 				continue
 			}
 			// fmt.Printf("pass check, in triangle")
 			z := zpixel(b[0], b[1], v0[2], u, v)
 			fmt.Printf("zpixel (%v,%v)=%v\n", i, j, z)
-			//color := ztocolor(z)
+			// color := ztocolor(z)
 			putpixel(i, j, 0xff000000, pix)
 		}
 	}
@@ -493,12 +502,12 @@ func bary(v, w, X [2]float64) [2]float64 {
 	d := w[1]
 	x := X[0]
 	y := X[1]
-	//make sure determinant is ! = 0
+	// make sure determinant is ! = 0
 	if a*d-b*c == 0 {
 		return [2]float64{-1, -1}
 	}
 	det := 1 / (a*d - b*c)
-	//calculate coefficients for vectors v,w
+	// calculate coefficients for vectors v,w
 	cv := d*det*x - b*det*y
 	cw := -c*det*x + a*det*y
 	return [2]float64{cv, cw}

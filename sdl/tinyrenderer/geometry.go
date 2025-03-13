@@ -180,18 +180,6 @@ func vdiff(u, v F3) F3 {
 	return F3{x, y, z}
 }
 
-// get normal to triangle face - orient towards +z
-func DynamicNormalForFace(v1, v2, v3 F3) F3 {
-	u := vdiff(v2, v1)
-	v := vdiff(v3, v1)
-	c := cross(u, v)
-	if c[2] > 0 {
-		c = vinv(c)
-	}
-	cn := vnormalize(c)
-	return cn
-}
-
 // vertex to pixel conversion
 func vtop(v F3) [2]int {
 	x := int((v[0] + 1) * float64(width) / 2)
