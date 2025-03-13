@@ -93,9 +93,13 @@ func drawFace(f *Face, pix []byte) {
 	n := f.Norm()
 	fillMask(pbox, pix)
 	for i := pbox.x0; i <= pbox.x1; i++ {
+		var hit bool
 		for j := pbox.y0; j <= pbox.y1; j++ {
 			_, z, err := f.Project(i, j)
 			//only draw pixel inside valid triangle face
+			if err == offTriangleError && hit {
+				break
+			}
 			if err != nil {
 				continue
 			}
@@ -109,6 +113,7 @@ func drawFace(f *Face, pix []byte) {
 				cmag := dot(n, F3{1, 0, 1})
 				c = bright(c, cmag)
 			}
+			hit = true
 			putpixel(i, j, c, pix)
 		}
 	}
