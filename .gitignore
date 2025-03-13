@@ -7,5 +7,6 @@
 *.html
 *.out
 *.txt
+*.swap
 #just in case:
 *id_rsa
