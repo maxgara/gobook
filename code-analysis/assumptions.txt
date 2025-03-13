@@ -1,6 +1,0 @@
--only type is int
--no function calls to funcs outside analyze.go
--no ifs
--no fors
--no short var decs
--no overflow

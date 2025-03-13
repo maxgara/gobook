@@ -1,2 +1,0 @@
-
--use tcpdump to get wireless packets without configuring actual wireless router?
