@@ -8,7 +8,6 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/dblezek/tga"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -59,12 +58,48 @@ var shadingEnabled bool
 var cpuprofile bool
 var start time.Time
 var textureEnabled bool
+var lightingEnabled bool
 
 type F3 [3]float64
 
+// cache important properties calculated for Face
+type FaceCache struct {
+	v0 F3      //vertex 0
+	uz float64 //V0->V1 delta z
+	wz float64 //V0->V2 delta z
+	//Matrix Coefficients
+	A1 float64
+	A2 float64
+	A3 float64
+	A4 float64
+}
+
+// invalidate cache
+func (f *Face) Unload() {
+	f.CacheOk = false
+}
+
 type Face struct {
-	vidx [3]int //vertex indices (in vertices global array)
-	tidx [3]int //texture-vertex indices (in textureVertices global array)
+	vidx    [3]int //vertex indices (in vertices global array)
+	tidx    [3]int //texture-vertex indices (in textureVertices global array)
+	CacheOk bool
+	Cache   *FaceCache
+}
+
+// TODO Remove this, experiment
+func (f *Face) TexAtBary(b0, b1, b2 float64) uint32 {
+	////get pixel as linear combination of vertices
+	//b, _, err := f.Project(x, y)
+	//if err == flatTriangleError {
+	//	return 0x0 //invalid projection gives black color, whatever
+	//}
+	////combine 2D texture coordinates, weighted by barycentric coords of pixel, to get final texture coordinate
+	//vs := f.T()
+	//v0, v1, v2 := vs[0], vs[1], vs[2]
+	//vx := b0*v0[0] + b1*v1[0] + b2*v2[0]
+	//vy := b0*v0[1] + b1*v1[1] + b2*v2[1]
+	//return textureAt(1-vy, vx)
+	return 0
 }
 
 // get texture color for pixel x,y based on texture coordinate interpolation
@@ -80,6 +115,16 @@ func (f *Face) TexAt(x, y int) uint32 {
 	vx := b[0]*v0[0] + b[1]*v1[0] + b[2]*v2[0]
 	vy := b[0]*v0[1] + b[1]*v1[1] + b[2]*v2[1]
 	return textureAt(1-vy, vx)
+}
+
+// TODO check if this is better for Project() performance
+func (f *Face) Vptr() [3]*F3 {
+	var v [3]*F3
+	for i := range 3 {
+		idx := f.vidx[i]
+		v[i] = &(verts[idx-1])
+	}
+	return v
 }
 
 // get vertices for face
@@ -111,8 +156,35 @@ func (f *Face) Norm() F3 {
 	return vnormalize(norm)
 }
 
+// TODO: check performance vs Project
+// Project when basis-change matrix already calculated, z0, Uz, Wz cached.
+func (f *Face) ProjectCached(x, y int) (bc F3, z float64, err error) {
+	//convert pixel to vert
+	pv := ptov([2]int{x, y})
+	//get pixel vector relative to v0
+	pv = vdiff(pv, f.Cache.v0)
+	cx := pv[0]
+	cy := pv[1]
+	//(calculate coefficients for vectors v,w relative to z0)
+	cu := f.Cache.A1*cx + f.Cache.A2*cy
+	cw := f.Cache.A3*cx + f.Cache.A4*cy
+	//make sure pv is inside of the triangle
+	if cu < 0 || cw < 0 || cu+cw > 1 {
+		return F3{}, 0, offTriangleError
+	}
+	//adjust z-coordinates for pv based on new basis 2D basis, interpolating across triangle
+	z0 := f.Cache.v0[2]
+	z = z0 + f.Cache.uz*cu + f.Cache.wz*cw
+	//barycentric coords:
+	bc = [3]float64{1 - cu - cw, cu, cw}
+	return bc, z, nil
+}
+
 // get barycentric coordinates and z-coordinate for pixel x,y based on face-projection
 func (f *Face) Project(x, y int) (bc F3, z float64, err error) {
+	if f.CacheOk {
+		return f.ProjectCached(x, y)
+	}
 	//get face verts
 	vs := f.V()
 	v0, v1, v2 := vs[0], vs[1], vs[2]
@@ -132,12 +204,12 @@ func (f *Face) Project(x, y int) (bc F3, z float64, err error) {
 	//We want to invert this to get
 	//c1 = x * A^-1
 	//c2   y
+	cx := pv[0]
+	cy := pv[1]
 	a := u[0]
 	b := w[0]
 	c := u[1]
 	d := w[1]
-	cx := pv[0]
-	cy := pv[1]
 	//make sure determinant is ! = 0
 	if a*d-b*c == 0 {
 		return F3{}, 0, flatTriangleError
@@ -154,6 +226,17 @@ func (f *Face) Project(x, y int) (bc F3, z float64, err error) {
 	z = z0 + u[2]*cu + w[2]*cw
 	//barycentric coords:
 	bc = [3]float64{1 - cu - cw, cu, cw}
+	//cache values
+	var C FaceCache
+	C.v0 = v0
+	C.uz = u[2]
+	C.wz = w[2]
+	C.A1 = d * det
+	C.A2 = -b * det
+	C.A3 = -c * det
+	C.A4 = a * det
+	f.Cache = &C
+	f.CacheOk = true
 	return bc, z, nil
 }
 
@@ -172,7 +255,7 @@ func setup() {
 	//set default values for global options
 	textureEnabled = true
 	shadingEnabled = true
-	cpuprofile = false
+	cpuprofile = true
 	//allocate zbuffer
 	zbuff = make([]float64, width*height) //keep track of what's in front of scene
 	//allocate zmask
@@ -228,33 +311,6 @@ func update() {
 }
 
 // draw loop
-func testDrawTextureImg(pix []byte) {
-	f, err := os.Open("african_head_diffuse.tga")
-	if err != nil {
-		log.Fatal(err)
-	}
-	img, err := tga.Decode(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for i := img.Bounds().Min.X; i < img.Bounds().Max.Y; i++ {
-		for j := img.Bounds().Min.Y; j < img.Bounds().Max.Y; j++ {
-			r, g, b, a := img.At(i, j).RGBA()
-			//keep most significant bits of 16-bit color channels
-			r = r >> 8
-			g = g >> 8
-			b = b >> 8
-			a = a >> 8
-			//put them in the right place for final uint32 color BGRA
-			r = r << 8
-			g = g << 16
-			b = b << 24
-			a = a
-			color := b | g | r | a
-			putpixel(i, j, color, pix)
-		}
-	}
-}
 func takeKeyboardInput() {
 	if event := sdl.PollEvent(); event != nil {
 		if event, ok := event.(*sdl.KeyboardEvent); ok {
@@ -275,6 +331,8 @@ func takeKeyboardInput() {
 				colorEnabled = !colorEnabled
 			case 22: //'s'
 				shadingEnabled = !shadingEnabled
+			case 15: //'l'
+				lightingEnabled = !lightingEnabled
 			}
 
 		}

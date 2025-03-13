@@ -88,20 +88,32 @@ func drawFace(f *Face, pix []byte) {
 	//select pixels to be considered based on face bounds
 	pbox := pixelbox(a, b, c)
 	// populate zmask buffer
-	f.getMask(pbox)
+	//f.getMask(pbox)
 	//fill solid color in where mask != 0
 	n := f.Norm()
 	fillMask(pbox, pix)
-	//TODO: update this
 	for i := pbox.x0; i <= pbox.x1; i++ {
 		for j := pbox.y0; j <= pbox.y1; j++ {
-			if zmask[i+j*width] == 0 {
+			_, z, err := f.Project(i, j)
+			//only draw pixel inside valid triangle face
+			if err != nil {
 				continue
 			}
+			//only draw pixels for faces at front of screen
+			if zbuff[i+j*width] > z {
+				continue
+			}
+			zbuff[i+j*width] = z
 			c := f.TexAt(i, j)
+			if lightingEnabled {
+				cmag := dot(n, F3{1, 0, 1})
+				c = bright(c, cmag)
+			}
 			putpixel(i, j, c, pix)
 		}
 	}
+	f.Unload()
+	//TODO: update this
 	return
 	// calculate face normal for lighting
 	var lightConts uint32
@@ -204,6 +216,23 @@ func DrawLine(x0, y0, x1, y1 int, color uint32, pixels []byte) {
 		}
 		putpixel(x, y, color, pixels)
 	}
+}
+
+// adjust color brightness
+func bright(c uint32, i float64) uint32 {
+	if i < 0 { // {{{
+		i = 0
+	}
+	if i > 1 {
+		i = 1
+	}
+	rc := c & RED
+	gc := c & GREEN
+	bc := c & BLUE
+	r := uint32(i*float64(rc)) & RED
+	g := uint32(i*float64(gc)) & GREEN
+	b := uint32(i*float64(bc)) & BLUE
+	return r | b | g // }}}
 }
 
 // return color: <=0->black, 1->white
