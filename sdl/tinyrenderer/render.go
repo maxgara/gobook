@@ -35,7 +35,6 @@ const (
 )
 
 var window *sdl.Window
-var wireframe bool
 var file *os.File
 var verts []F3
 var faces []Face
@@ -49,14 +48,11 @@ var blanksurf *sdl.Surface
 var surf *sdl.Surface
 var zbuff []float64
 var zmask []uint32 //0xffffff00 where triangle is visible, otherwise 0x0
-var lightpos []F3
-var lightcolors []uint32
-var lightpower []float64
-var lightrot float64
+var start time.Time
+var wireframe bool
 var colorEnabled bool
 var shadingEnabled bool
 var cpuprofile bool
-var start time.Time
 var textureEnabled bool
 var lightingEnabled bool
 
@@ -86,22 +82,6 @@ type Face struct {
 	Cache   *FaceCache
 }
 
-// TODO Remove this, experiment
-func (f *Face) TexAtBary(b0, b1, b2 float64) uint32 {
-	////get pixel as linear combination of vertices
-	//b, _, err := f.Project(x, y)
-	//if err == flatTriangleError {
-	//	return 0x0 //invalid projection gives black color, whatever
-	//}
-	////combine 2D texture coordinates, weighted by barycentric coords of pixel, to get final texture coordinate
-	//vs := f.T()
-	//v0, v1, v2 := vs[0], vs[1], vs[2]
-	//vx := b0*v0[0] + b1*v1[0] + b2*v2[0]
-	//vy := b0*v0[1] + b1*v1[1] + b2*v2[1]
-	//return textureAt(1-vy, vx)
-	return 0
-}
-
 // get texture color for pixel x,y based on texture coordinate interpolation
 func (f *Face) TexAt(x, y int) uint32 {
 	//get pixel as linear combination of vertices
@@ -115,16 +95,6 @@ func (f *Face) TexAt(x, y int) uint32 {
 	vx := b[0]*v0[0] + b[1]*v1[0] + b[2]*v2[0]
 	vy := b[0]*v0[1] + b[1]*v1[1] + b[2]*v2[1]
 	return textureAt(1-vy, vx)
-}
-
-// TODO check if this is better for Project() performance
-func (f *Face) Vptr() [3]*F3 {
-	var v [3]*F3
-	for i := range 3 {
-		idx := f.vidx[i]
-		v[i] = &(verts[idx-1])
-	}
-	return v
 }
 
 // get vertices for face
@@ -260,10 +230,6 @@ func setup() {
 	zbuff = make([]float64, width*height) //keep track of what's in front of scene
 	//allocate zmask
 	zmask = make([]uint32, width*height+801)
-	//set up 1 light (only used if lighting enabled)
-	lightpos = append(lightpos, F3{2, 2.5, 20})
-	lightcolors = append(lightcolors, RED|GREEN|BLUE)
-	lightpower = append(lightpower, 1)
 	//load files
 	loadobjfile(filename)
 	texture = loadTexture(texturefilename)
@@ -301,13 +267,8 @@ func update() {
 	for i := range verts {
 		v := verts[i]
 		v = yrot(v, yrotd)
-		for j := range lightpos {
-			lightpos[j] = xrot(lightpos[j], lightrot)
-		}
 		verts[i] = v
 	}
-	//greyval -= 0.001
-	//this is a test
 }
 
 // draw loop
@@ -328,11 +289,13 @@ func takeKeyboardInput() {
 			case 26: //'w'
 				wireframe = !wireframe
 			case 6: //'c'
-				colorEnabled = !colorEnabled
+				colorEnabled = !colorEnabled //??
 			case 22: //'s'
 				shadingEnabled = !shadingEnabled
 			case 15: //'l'
 				lightingEnabled = !lightingEnabled
+			case 23: //'t'
+				textureEnabled = !textureEnabled
 			}
 
 		}

@@ -1,36 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/veandco/go-sdl2/sdl"
 )
-
-func testInterpText(pix []byte) {
-	var f Face
-	f.vidx = [3]int{0, 1, 2}
-	f.tidx = [3]int{0, 1, 2}
-	for i := range width {
-		for j := range height {
-			color := interpTexture(&f, i, j)
-			// fmt.Printf("color = %x\n", color)
-			putpixel(i, j, color, pix)
-		}
-	}
-}
-
-func testTextureAt(pix []byte) {
-	count := 1000
-	for i := range count {
-		for j := range count {
-			x := float64(i) / float64(count)
-			y := float64(j) / float64(count)
-			color := textureAt(x, y) & 0xffffff00
-			fmt.Printf("color = %x\n", color)
-			putpixel(int(x*float64(width)), int(y*float64(height)), color, pix)
-		}
-	}
-}
 
 // draw a frame
 func drawFrame(surf *sdl.Surface, blank *sdl.Surface) {
@@ -108,80 +80,22 @@ func drawFace(f *Face, pix []byte) {
 				continue
 			}
 			zbuff[i+j*width] = z
-			c := f.TexAt(i, j)
+			var c uint32
+			c = 0xffffff00
+			if textureEnabled {
+				c = f.TexAt(i, j)
+			}
 			if lightingEnabled {
 				cmag := dot(n, F3{1, 0, 1})
 				c = bright(c, cmag)
 			}
 			hit = true
-			putpixel(i, j, c, pix)
+			if shadingEnabled {
+				putpixel(i, j, c, pix)
+			}
 		}
 	}
 	f.Unload()
-	//TODO: update this
-	return
-	// calculate face normal for lighting
-	var lightConts uint32
-	for lidx, src := range lightpos {
-		pow := lightpower[lidx]
-		intensity := greyscale(dot(n, src) * pow)
-		col := lightcolors[lidx]
-		if !colorEnabled {
-			col = RED | GREEN | BLUE
-		}
-		lightConts = intensity & col
-		// TODO: put pixel drawing code here, so more than one light can be drawn
-	}
-
-	if !shadingEnabled {
-		return
-	}
-	for i := pbox.x0; i <= pbox.x1; i++ {
-		for j := pbox.y0; j <= pbox.y1; j++ {
-			// putpixel(i, j, greyscale(math.Abs(vn1[2])), pix)
-			maskval := zmask[i+width*j]
-			if maskval == 0 {
-				continue
-			}
-			if textureEnabled {
-				// estimate texture color by using color at vertex 1.
-				// TODO: replace this with extrapolation using barycentric cs.
-				// texturecolor := textureFor(aidx)
-				texturecolor := interpTexture(f, i, j)
-				lightConts = texturecolor
-				// v0col :=
-			}
-			lightConts = lightConts & maskval
-			// lightConts = (RED | GREEN | BLUE) & maskval
-			putpixel(i, j, lightConts, pix)
-		}
-	}
-}
-
-// build a zmask for face based on existing zbuffer, restricted to pixels in b
-func (f *Face) getMask(b box) {
-	// get z-pixel values
-	var i, j int
-	for i = b.x0; i <= b.x1; i++ {
-		for j = b.y0; j <= b.y1; j++ {
-			_, z, err := f.Project(i, j)
-			// get masking index
-			midx := i + j*width
-			// skip pixels which are not inside of this face
-			if err != nil {
-				zmask[midx] = 0x0
-				continue
-			}
-			// skip pixels where another triangle is in front of this face
-			if zbuff[midx] > z {
-				zmask[midx] = 0x0
-				continue
-			}
-			//update mask, zbuffer to show position where this triangle is currently in front
-			zmask[midx] = 0x1
-			zbuff[midx] = z
-		}
-	}
 }
 
 // draw line between vertices
@@ -237,20 +151,6 @@ func bright(c uint32, i float64) uint32 {
 	r := uint32(i*float64(rc)) & RED
 	g := uint32(i*float64(gc)) & GREEN
 	b := uint32(i*float64(bc)) & BLUE
-	return r | b | g // }}}
-}
-
-// return color: <=0->black, 1->white
-func greyscale(i float64) uint32 {
-	if i < 0 { // {{{
-		i = 0
-	}
-	if i > 1 {
-		i = 1
-	}
-	r := uint32(i*RED) & RED
-	g := uint32(i*GREEN) & GREEN
-	b := uint32(i*BLUE) & BLUE
 	return r | b | g // }}}
 }
 
