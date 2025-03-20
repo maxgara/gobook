@@ -179,6 +179,8 @@ func takeKeyboardInput() {
 			switch event.Keysym.Scancode {
 			case 20: //q
 				done = true
+			case 7: //d
+				dotsEnabled = !dotsEnabled
 
 			}
 		}
@@ -218,7 +220,7 @@ func update(ob *Obj) {
 	//fmt.Printf("off = %v\n", off)
 	_ = off
 	//TM := *getTransM(off, 0, 0)
-	TM := *getTransM(0, 0, 1.5)
+	TM := *getTransM(0, 0, 1.4)
 	M = mmMult(TM, M) // rotate before translation (rotation on the right)
 	M.Transform(ob.vs, ob.fileVs)
 	//3d -> 2d perspective projection

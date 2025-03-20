@@ -15,6 +15,7 @@ const (
 
 var T0M *M4
 var ID *M4 // useful for testing matrix ops
+var dotsEnabled bool
 
 type F3 [3]float64
 type M4 [4][4]float64 // matrix[row][col]
@@ -176,22 +177,22 @@ func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	}
 	det := 1 / (a*d - b*c)
 
-	//get translation matrix for x,y,z offset from v0
-	T := getTransM(-v0.x, -v0.y, -v0.z)
+	//get translation matrix for x,y offset from v0
+	T := getTransM(-v0.x, -v0.y, 0)
 
-	//get change of basis matrix
+	//get partial change of basis matrix (x,y only, z set to 0)
 	r0 := [4]float64{d * det, -b * det, 0, 0}
 	r1 := [4]float64{-c * det, a * det, 0, 0}
-	r2 := [4]float64{0, 0, 1, 0}
+	r2 := [4]float64{0, 0, 0, 0}
 	r3 := [4]float64{0, 0, 0, 1}
 	M = M4{r0, r1, r2, r3}
 
-	//get partial reverse change of basis (z only)
-	r0 = [4]float64{1, 0, 0, 0}
-	r1 = [4]float64{0, 1, 0, 0}
-	r3 = [4]float64{u.z, w.z, 0, v0.z}
-	r3 = [4]float64{0, 0, 0, 1}
-	ZB := M4{r0, r1, r2, r3}
+	//get partial reverse change of basis (z extrapolated from u,v)
+	R0 := [4]float64{1, 0, 0, 0}
+	R1 := [4]float64{0, 1, 0, 0}
+	R2 := [4]float64{0, 0, 0, v0.z}
+	R3 := [4]float64{0, 0, 0, 1}
+	ZB := M4{R0, R1, R2, R3}
 
 	M = mmMult(ZB, M)
 	return mmMult(M, *T), nil
@@ -249,7 +250,10 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 			//row := make([]V4, bbox.x1-bbox.x0)
 
 			for i := int(bbox.x0); i <= int(bbox.x1); i++ {
-				//putpixel(int(i), int(j), 0, 0xff, 0xff, 0, pix)
+				if dotsEnabled {
+					putpixel(int(i), int(j), 0, 0xff, 0xff, 0, pix)
+					continue
+				}
 				//get barycentric coords for <i,j>
 				v := V4{float64(i), float64(j), 0, 1}
 				varrout := make([]V4, 1)
@@ -267,7 +271,7 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 					continue
 				}
 				zbuff[i+j*width] = z
-				fmt.Printf("zval=%v\n", z)
+				//fmt.Printf("zval=%v\n", z)
 				chv := byte(min(0xff, 0xff-z*0xff/2)) //channel val
 				putpixel(int(i), int(j), chv, chv, chv, 0, pix)
 			}
