@@ -14,7 +14,7 @@ import (
 
 const (
 	texturefilename = "african_head_diffuse.tga"
-	delay           = 0     //delay between update calls
+	delay           = 0     // delay between update calls
 	yrotDelta       = 0.010 // +y azis rotation per frame
 	xrotset         = 0     // +x azis rotation
 	ALPHA           = 0x000000ff
@@ -31,19 +31,21 @@ const (
 	BOFF
 )
 
-var window *sdl.Window
-var file *os.File
-var textureVerts []F3
-var texw, texh int
-var done bool //control graceful program exit
-var loops uint64
-var texture []uint32
-var blanksurf *sdl.Surface
-var surf *sdl.Surface
-var zbuff []float64
-var start time.Time
-var cpuprofile bool
-var yrotTot float64
+var (
+	window       *sdl.Window
+	file         *os.File
+	textureVerts []F3
+	texw, texh   int
+	done         bool // control graceful program exit
+	loops        uint64
+	texture      []uint32
+	blanksurf    *sdl.Surface
+	surf         *sdl.Surface
+	zbuff        []float64
+	start        time.Time
+	cpuprofile   bool
+	yrotTot      float64
+)
 
 //// get texture color for pixel x,y based on texture coordinate interpolation
 //func (f *Face) TexAt(x, y int) uint32 {
@@ -157,9 +159,10 @@ func getID() {
 	w3 := [4]float64{0, 0, 0, 1}
 	ID = &M4{w0, w1, w2, w3}
 }
+
 func main() {
 	ob := setup()
-	//transform vertices so that they are in the screen area
+	// transform vertices so that they are in the screen area
 	for !done {
 		loops++
 		drawFrame(surf, blanksurf, ob)
@@ -169,6 +172,7 @@ func main() {
 	}
 	end()
 }
+
 func takeKeyboardInput() {
 	if event := sdl.PollEvent(); event != nil {
 		if event, ok := event.(*sdl.KeyboardEvent); ok {
@@ -177,11 +181,10 @@ func takeKeyboardInput() {
 			}
 			fmt.Printf("event.Keysym.Scancode: %v %[1]c\n", event.Keysym.Scancode)
 			switch event.Keysym.Scancode {
-			case 20: //q
+			case 20: // q
 				done = true
-			case 7: //d
+			case 7: // d
 				dotsEnabled = !dotsEnabled
-
 			}
 		}
 		if _, ok := event.(*sdl.QuitEvent); ok {
@@ -204,26 +207,28 @@ func getYRot(t float64) M4 {
 	return M4{rx, ry, rz, rm}
 }
 
-var off float64
-var dir float64
+var (
+	off float64
+	dir float64
+)
 
 func update(ob *Obj) {
 	var offD float64 = 0.01
 	if dir == 0 {
-		dir = 1 //init
+		dir = 1 // init
 	}
 	if off > 0.8 || off < -0.8 {
 		dir = -dir // bounce
 	}
 	off += offD * dir
 	M := getYRot(yrotTot)
-	//fmt.Printf("off = %v\n", off)
+	// fmt.Printf("off = %v\n", off)
 	_ = off
-	//TM := *getTransM(off, 0, 0)
+	// TM := *getTransM(off, 0, 0)
 	TM := *getTransM(0, 0, 1.4)
 	M = mmMult(TM, M) // rotate before translation (rotation on the right)
 	M.Transform(ob.vs, ob.fileVs)
-	//3d -> 2d perspective projection
+	// 3d -> 2d perspective projection
 	perspectiveProject(ob.vs)
 	//for _, v := range ob.vs {
 	//	fmt.Printf("v = %v\n", v)
@@ -231,14 +236,14 @@ func update(ob *Obj) {
 	//-> screen space
 	M = *T0M
 	M.Transform(ob.vs, ob.vs)
-	//fmt.Printf("rotated %v to %v\n", ob.fileVs[i], v)
+	// fmt.Printf("rotated %v to %v\n", ob.fileVs[i], v)
 	yrotTot += yrotDelta
 }
 
 // put pixel with color in pixels array at pos x,y
 func putpixel(x, y int, r, g, b, a byte, pixels []byte) {
 	if x >= width || y >= height || x < 0 || y < 0 {
-		//fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
+		// fmt.Fprintf(os.Stderr, "Out of bounds putpixel: %v,%v\n", x, y)
 		return
 	}
 	idx := 4 * (x + width*y)
@@ -286,7 +291,7 @@ func putpixel(x, y int, r, g, b, a byte, pixels []byte) {
 // stop profiling + benchmarking
 func end() {
 	dur := time.Since(start)
-	var loopsPerSec = float64(loops) / float64(dur.Seconds())
+	loopsPerSec := float64(loops) / float64(dur.Seconds())
 	if cpuprofile {
 		pprof.StopCPUProfile()
 	}
