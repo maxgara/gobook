@@ -198,7 +198,7 @@ func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	// get partial reverse change of basis (z extrapolated from u,v)
 	R0 := [4]float64{1, 0, 0, 0}
 	R1 := [4]float64{0, 1, 0, 0}
-	R2 := [4]float64{u.z, w.z, 0, v0.z}
+	R2 := [4]float64{0, 0, 0, v0.z}
 	R3 := [4]float64{0, 0, 0, 1}
 	ZB := M4{R0, R1, R2, R3}
 
@@ -289,10 +289,7 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 				}
 				zbuff[i+j*width] = z
 				// fmt.Printf("zval=%v\n", z)
-				if z > 2 {
-					z = 2
-				}
-				chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
+				chv := byte(min(0xff, 0xff-z*0xff/2)) // channel val
 				putpixel(int(i), int(j), chv, chv, chv, 0, pix)
 			}
 		}

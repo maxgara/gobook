@@ -14,7 +14,7 @@ import (
 
 const (
 	texturefilename = "african_head_diffuse.tga"
-	delay           = 0     // delay between update calls
+	delay           = 100   // delay between update calls
 	yrotDelta       = 0.010 // +y azis rotation per frame
 	xrotset         = 0     // +x azis rotation
 	ALPHA           = 0x000000ff
@@ -47,7 +47,7 @@ var (
 	yrotTot      float64
 )
 
-// get texture color for pixel x,y based on texture coordinate interpolation
+//// get texture color for pixel x,y based on texture coordinate interpolation
 //func (f *Face) TexAt(x, y int) uint32 {
 //	//get pixel as linear combination of vertices
 //	b, _, err := f.Project(x, y)
@@ -227,7 +227,7 @@ func update(ob *Obj) {
 	// fmt.Printf("off = %v\n", off)
 	_ = off
 	// TM := *getTransM(off, 0, 0)
-	TM := *getTransM(0, 0, 2)
+	TM := *getTransM(0, 0, 1)
 	M = mmMult(TM, M) // rotate before translation (rotation on the right)
 	M.Transform(ob.vs, ob.fileVs)
 	// 3d -> 2d perspective projection
