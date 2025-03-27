@@ -12,6 +12,21 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+// load normal vector from string
+func loadNormal(s string, vns *[]V4) {
+	fs := strings.Fields(s)
+	var arr [3]float64
+	for i, coordstr := range fs[1:] {
+		coord, err := strconv.ParseFloat(coordstr, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		arr[i] = coord
+	}
+	vn := V4{arr[0], arr[1], arr[2], 0} //Normal is a vector, not a point, so it has M=0 magic coordinate
+	*vns = append(*vns, vn)
+}
+
 // load texture vertex from string
 func loadTextureVertex(s string, tvs *[]V4) {
 	fs := strings.Fields(s)
@@ -80,6 +95,7 @@ func loadface(s string, faces *[]Face) {
 func loadobjfile(filename string) *Obj {
 	var vs []V4
 	var tvs []V4
+	var vns []V4
 	var fs []Face
 	f, err := os.ReadFile(filename)
 	if err != nil {
@@ -94,11 +110,17 @@ func loadobjfile(filename string) *Obj {
 			loadface(v, &fs)
 		case strings.HasPrefix(v, "vt "):
 			loadTextureVertex(v, &tvs)
+		case strings.HasPrefix(v, "vn "):
+			loadNormal(v, &vns)
 		}
 	}
+	//deep copy of vertex slice needed for fileVs, since they will need to remain the same while normal vs subject to transformations.
+	//same for vertex-normals
 	vsCopy := make([]V4, len(vs))
+	vnsCopy := make([]V4, len(vs))
 	copy(vsCopy, vs)
-	ob := Obj{vs: vs, tvs: tvs, fs: fs, fileVs: vsCopy}
+	copy(vnsCopy, vns)
+	ob := Obj{vs: vs, tvs: tvs, vns: vns, fs: fs, fileVs: vsCopy, fileNs: vnsCopy}
 	return &ob
 }
 func setup() *Obj {

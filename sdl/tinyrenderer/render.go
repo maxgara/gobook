@@ -32,19 +32,19 @@ const (
 )
 
 var (
-	window       *sdl.Window
-	file         *os.File
-	textureVerts []F3
-	texw, texh   int
-	done         bool // control graceful program exit
-	loops        uint64
-	texture      []uint32
-	blanksurf    *sdl.Surface
-	surf         *sdl.Surface
-	zbuff        []float64
-	start        time.Time
-	cpuprofile   bool
-	yrotTot      float64
+	window *sdl.Window
+	// file         *os.File
+	// textureVerts []F3
+	// texw, texh   int
+	done  bool // control graceful program exit
+	loops uint64
+	// texture      []uint32
+	blanksurf  *sdl.Surface
+	surf       *sdl.Surface
+	zbuff      []float64
+	start      time.Time
+	cpuprofile bool
+	yrotTot    float64
 )
 
 // get texture color for pixel x,y based on texture coordinate interpolation
@@ -187,6 +187,8 @@ func takeKeyboardInput() {
 				dotsEnabled = !dotsEnabled
 			case 23: //t
 				textureEnabled = !textureEnabled
+			case 15: //l
+				lightingEnabled = !lightingEnabled
 			}
 		}
 		if _, ok := event.(*sdl.QuitEvent); ok {
@@ -209,36 +211,21 @@ func getYRot(t float64) M4 {
 	return M4{rx, ry, rz, rm}
 }
 
-var (
-	off float64
-	dir float64
-)
-
 func update(ob *Obj) {
-	var offD float64 = 0.01
-	if dir == 0 {
-		dir = 1 // init
-	}
-	if off > 0.8 || off < -0.8 {
-		dir = -dir // bounce
-	}
-	off += offD * dir
+	//get rotation Matrix
 	M := getYRot(yrotTot)
-	// fmt.Printf("off = %v\n", off)
-	_ = off
-	// TM := *getTransM(off, 0, 0)
+	//get translation matrix (move object away from camera)
 	TM := *getTransM(0, 0, 2)
 	M = mmMult(TM, M) // rotate before translation (rotation on the right)
+	//apply combined rotation + translation (although translation will not affect vectors in vns)
 	M.Transform(ob.vs, ob.fileVs)
-	// 3d -> 2d perspective projection
+	M.Transform(ob.vns, ob.fileNs)
+	fmt.Printf("%v\n", ob.vns[100])
+	// 3d -> 2d perspective projection (divide x,y by z)
 	perspectiveProject(ob.vs)
-	//for _, v := range ob.vs {
-	//	fmt.Printf("v = %v\n", v)
-	//}
 	//-> screen space
 	M = *T0M
 	M.Transform(ob.vs, ob.vs)
-	// fmt.Printf("rotated %v to %v\n", ob.fileVs[i], v)
 	yrotTot += yrotDelta
 }
 

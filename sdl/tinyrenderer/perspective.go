@@ -14,10 +14,11 @@ const (
 )
 
 var (
-	T0M            *M4
-	ID             *M4  // useful for testing matrix ops
-	dotsEnabled    bool //only draw vertices
-	textureEnabled bool //draw texture
+	T0M             *M4
+	ID              *M4  // useful for testing matrix ops
+	dotsEnabled     bool //only draw vertices
+	textureEnabled  bool //draw texture
+	lightingEnabled bool
 )
 
 type (
@@ -66,13 +67,15 @@ type Face struct {
 
 // represents a 3D object and associated texture. Affine transformation matrix can be applied via Transform and will affect the drawn image, while keeping original data intact. Additional Transforms will use original data.
 type Obj struct {
-	fileVs []V4     // original vertex data
-	vs     []V4     // vertex data Transform
-	tex    []uint32 // texture data
-	tvs    []V4     // texture vertex data
-	tw     int      // texture width
-	th     int      // texture height
-	fs     []Face   // faces
+	fileVs []V4 // original vertex data
+	fileNs []V4 //original vertex-normal data
+	vs     []V4 // vertex data Transform
+	vns    []V4 // vertex normal data
+	//tex    []uint32 // texture data
+	tvs []V4 // texture vertex data
+	//tw     int      // texture width
+	//th     int      // texture height
+	fs []Face // faces
 }
 
 func (A M4) Transform(vsOut, vsIn []V4) {
@@ -168,7 +171,7 @@ func vsub(u, v V4) V4 {
 	return out
 }
 
-// get matrix change basis for point to barycentric coords
+// get matrix to change basis for point to barycentric coords
 func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	// get AB and AC vectors
 	u := vsub(v1, v0)
@@ -229,6 +232,12 @@ func perspectiveProject(vs []V4) {
 	}
 }
 
+// dot product
+func dot(a, b V4) float64 {
+	x, y, z := a.x*b.x, a.y*b.y, a.z*b.z
+	return x + y + z
+}
+
 // draw a frame
 func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 	// clear screen
@@ -258,13 +267,17 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 		return
 	}
 	for _, f := range ob.fs {
-		vxs := f.vidx
+		vxs := f.vidx //vertex indices
 		vs := []V4{ob.vs[vxs[0]-1], ob.vs[vxs[1]-1], ob.vs[vxs[2]-1]}
 		bbox := pixelbox(vs...)
 		_ = bbox
 		M, err := getBaryM(vs[0], vs[1], vs[2])
 		if err != nil {
 			continue
+		}
+		if lightingEnabled {
+			//TODO create matrix to interpolate xyz coords for normals across face
+
 		}
 		for j := int(bbox.y0); j <= int(bbox.y1); j++ {
 			for i := int(bbox.x0); i <= int(bbox.x1); i++ {
@@ -293,6 +306,14 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 					z = 2
 				}
 				chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
+				if lightingEnabled {
+					vn0 := ob.vns[f.vidx[0]-1]
+					it := 0xff * dot(vn0, V4{3, 0, -1, 0})
+					if it < 0 {
+						it = 0
+					}
+					chv = byte(it / 5)
+				}
 				putpixel(int(i), int(j), chv, chv, chv, 0, pix)
 			}
 		}
