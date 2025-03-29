@@ -242,41 +242,6 @@ func putpixel(x, y int, r, g, b, a byte, pixels []byte) {
 	pixels[idx+3] = a
 }
 
-// draw loop
-//
-//func takeKeyboardInput() {
-//	if event := sdl.PollEvent(); event != nil {
-//		if event, ok := event.(*sdl.KeyboardEvent); ok {
-//			if event.State == 0 {
-//				return
-//			}
-//			fmt.Printf("event.Keysym.Scancode: %v %[1]c\n", event.Keysym.Scancode)
-//			switch event.Keysym.Scancode {
-//			case 20: //q
-//				done = true
-//			case 82: //up arrow
-//			case 81: //down arrow
-//			case 80: //left arrow
-//			case 79: //right arrow
-//			case 26: //'w'
-//				wireframe = !wireframe
-//			case 6: //'c'
-//				colorEnabled = !colorEnabled //??
-//			case 22: //'s'
-//				shadingEnabled = !shadingEnabled
-//			case 15: //'l'
-//				lightingEnabled = !lightingEnabled
-//			case 23: //'t'
-//				textureEnabled = !textureEnabled
-//			}
-//		}
-//		if _, ok := event.(*sdl.QuitEvent); ok {
-//			done = true
-//			return
-//		}
-//	}
-//}
-
 // stop profiling + benchmarking
 func end() {
 	dur := time.Since(start)

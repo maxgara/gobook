@@ -171,7 +171,20 @@ func vsub(u, v V4) V4 {
 	return out
 }
 
+// get matrix representing interpolation of a quantity q between face vertices
+// matrix represents transformation (u,w) -> (u,v,q)
+func getUVInterpolationM(q0, q1, q2 float64) M4 {
+	qu := q1 - q0
+	qw := q2 - q0
+	r0 := [4]float64{1, 0, 0, 1}
+	r1 := [4]float64{0, 1, 0, 0}
+	r2 := [4]float64{qu, qw, 0, q0}
+	r3 := [4]float64{0, 0, 0, 1}
+	return M4{r0, r1, r2, r3}
+}
+
 // get matrix to change basis for point to barycentric coords
+// matrix represents transformation (x,y) -> (u,v,z)  where z extrapolated from u,v
 func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	// get AB and AC vectors
 	u := vsub(v1, v0)
@@ -275,24 +288,39 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 		if err != nil {
 			continue
 		}
+		var lInterpM M4
 		if lightingEnabled {
-			//TODO create matrix to interpolate xyz coords for normals across face
-
+			//get intensities for each vertex in face
+			lpos := V4{3, 0, -1, 0} //light position
+			vn0 := ob.vns[f.vidx[0]-1]
+			vn1 := ob.vns[f.vidx[1]-1]
+			vn2 := ob.vns[f.vidx[2]-1]
+			it0 := 0xff * dot(vn0, lpos)
+			it1 := 0xff * dot(vn1, lpos)
+			it2 := 0xff * dot(vn2, lpos)
+			if it0 < 0 {
+				it0 = 0
+			}
+			if it1 < 0 {
+				it1 = 0
+			}
+			if it2 < 0 {
+				it2 = 0
+			}
+			//get matrix to interpolate intensities across face, given u,v coordinates
+			lInterpM = getUVInterpolationM(it0, it1, it2)
 		}
+		_ = lInterpM
 		for j := int(bbox.y0); j <= int(bbox.y1); j++ {
 			for i := int(bbox.x0); i <= int(bbox.x1); i++ {
 				// get barycentric coords for <i,j>
 				v := V4{float64(i), float64(j), 0, 1}
-				varrout := make([]V4, 1)
-				M.Transform(varrout, []V4{v})
-				bcs := varrout[0]
+				varrTemp := make([]V4, 1)
+				M.Transform(varrTemp, []V4{v})
+				bcs := varrTemp[0]
 				if bcs.x < 0 || bcs.y < 0 || 1-bcs.x-bcs.y < 0 {
 					continue
 				}
-				// vec0 := vsub(vs[1], vs[0])
-				// vec1 := vsub(vs[2], vs[0])
-
-				// z := bcs.x*vec0.z + bcs.y*vec1.z
 				z := bcs.z
 				if i+j*width >= len(zbuff) || i+j*width < 0 {
 					continue
@@ -307,11 +335,13 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 				}
 				chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
 				if lightingEnabled {
-					vn0 := ob.vns[f.vidx[0]-1]
-					it := 0xff * dot(vn0, V4{3, 0, -1, 0})
-					if it < 0 {
-						it = 0
-					}
+					//vn0 := ob.vns[f.vidx[0]-1]
+					//it := 0xff * dot(vn0, V4{3, 0, -1, 0})
+					//if it < 0 {
+					//	it = 0
+					//}
+					lInterpM.Transform(varrTemp, varrTemp)
+					it := varrTemp[0].z
 					chv = byte(it / 5)
 				}
 				putpixel(int(i), int(j), chv, chv, chv, 0, pix)
