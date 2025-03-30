@@ -173,6 +173,25 @@ func main() {
 	end()
 }
 
+// vertex shader (transform vertex and prepare data for fragment shader)
+func vShader(v *V4, vn *V4) {
+	v.m = 1 //make sure that this is always 1
+	//apply combined rotation + translation (although translation will not affect vectors in vns)
+	*v = mvMult(vertexRTM, *v)
+	*vn = mvMult(vertexRTM, *vn)
+	// 3d -> 2d perspective projection (divide x,y by z)
+	v.x = v.x / v.z
+	v.y = v.y / v.z
+	//-> screen space
+	*v = mvMult(*T0M, *v)
+	lpos := V4{3, 0, -1, 0} //light position
+	it := 0xff * dot(*vn, lpos)
+	//if it < 0 {
+	//	it = 0
+	//}
+	v.m = it //for now, store the light intensity for the vertex in the "magic" coordinate m
+}
+
 func takeKeyboardInput() {
 	if event := sdl.PollEvent(); event != nil {
 		if event, ok := event.(*sdl.KeyboardEvent); ok {
@@ -211,21 +230,14 @@ func getYRot(t float64) M4 {
 	return M4{rx, ry, rz, rm}
 }
 
+var vertexRTM M4 //vertex rotation and translation matrix
+// call this before each frame render
 func update(ob *Obj) {
 	//get rotation Matrix
 	M := getYRot(yrotTot)
 	//get translation matrix (move object away from camera)
 	TM := *getTransM(0, 0, 2)
-	M = mmMult(TM, M) // rotate before translation (rotation on the right)
-	//apply combined rotation + translation (although translation will not affect vectors in vns)
-	M.Transform(ob.vs, ob.fileVs)
-	M.Transform(ob.vns, ob.fileNs)
-	fmt.Printf("%v\n", ob.vns[100])
-	// 3d -> 2d perspective projection (divide x,y by z)
-	perspectiveProject(ob.vs)
-	//-> screen space
-	M = *T0M
-	M.Transform(ob.vs, ob.vs)
+	vertexRTM = mmMult(TM, M) // rotate before translation (rotation on the right)
 	yrotTot += yrotDelta
 }
 

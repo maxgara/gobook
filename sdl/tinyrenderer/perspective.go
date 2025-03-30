@@ -236,13 +236,10 @@ func testcalls() {
 }
 
 // change x,y coords of vs to project onto a plane where z=0, based on perspective from origin
-func perspectiveProject(vs []V4) {
-	for i := range vs {
-		v := vs[i]
-		v.x = v.x / v.z
-		v.y = v.y / v.z
-		vs[i] = v
-	}
+func perspectiveProject(v V4) V4 {
+	v.x = v.x / v.z
+	v.y = v.y / v.z
+	return v
 }
 
 // dot product
@@ -251,7 +248,55 @@ func dot(a, b V4) float64 {
 	return x + y + z
 }
 
+// fragment shader
+func fshader(i, j int, bcs V4, pix []byte) {
+	var outside bool
+	u, w := bcs.x, bcs.y
+	switch {
+	case u < 0.1 && w < 0.1:
+	case u > 0.9 && w < 0.1:
+	case w > 0.9 && u < 0.1:
+	default:
+		return
+	}
+
+	if bcs.x < 0 || bcs.y < 0 || 1-bcs.x-bcs.y < 0 {
+		outside = true
+		return
+	}
+	z := bcs.z
+	if i+j*width >= len(zbuff) || i+j*width < 0 {
+		return
+	}
+	if zbuff[i+j*width] < z {
+		return
+	}
+	zbuff[i+j*width] = z
+	// fmt.Printf("zval=%v\n", z)
+	chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
+	var bface bool
+	if lightingEnabled {
+		bcs = mvMult(lInterpM, bcs) //get lighting at point i,j from barycentric coords
+		it := bcs.z
+		if it < 0 {
+			bface = true
+			it = -it
+		}
+		if outside {
+			it = 0
+		}
+		chv = byte(it / 4)
+	}
+	if bface {
+		putpixel(int(i), int(j), chv, 0, 0, 0, pix)
+	} else {
+		putpixel(int(i), int(j), 0, chv, 0, 0, pix)
+	}
+}
+
 // draw a frame
+var lInterpM M4
+
 func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 	// clear screen
 	rect := sdl.Rect{0, 0, width, height}
@@ -282,31 +327,19 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 	for _, f := range ob.fs {
 		vxs := f.vidx //vertex indices
 		vs := []V4{ob.vs[vxs[0]-1], ob.vs[vxs[1]-1], ob.vs[vxs[2]-1]}
+		vns := []V4{ob.vns[vxs[0]-1], ob.vns[vxs[1]-1], ob.vns[vxs[2]-1]}
+		vShader(&vs[0], &vns[0])
+		vShader(&vs[1], &vns[1])
+		vShader(&vs[2], &vns[2])
+		it0, it1, it2 := vs[0].m, vs[1].m, vs[2].m
 		bbox := pixelbox(vs...)
-		_ = bbox
 		M, err := getBaryM(vs[0], vs[1], vs[2])
 		if err != nil {
 			continue
 		}
-		var lInterpM M4
 		if lightingEnabled {
 			//get intensities for each vertex in face
-			lpos := V4{3, 0, -1, 0} //light position
-			vn0 := ob.vns[f.vidx[0]-1]
-			vn1 := ob.vns[f.vidx[1]-1]
-			vn2 := ob.vns[f.vidx[2]-1]
-			it0 := 0xff * dot(vn0, lpos)
-			it1 := 0xff * dot(vn1, lpos)
-			it2 := 0xff * dot(vn2, lpos)
-			if it0 < 0 {
-				it0 = 0
-			}
-			if it1 < 0 {
-				it1 = 0
-			}
-			if it2 < 0 {
-				it2 = 0
-			}
+
 			//get matrix to interpolate intensities across face, given u,v coordinates
 			lInterpM = getUVInterpolationM(it0, it1, it2)
 		}
@@ -315,36 +348,8 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 			for i := int(bbox.x0); i <= int(bbox.x1); i++ {
 				// get barycentric coords for <i,j>
 				v := V4{float64(i), float64(j), 0, 1}
-				varrTemp := make([]V4, 1)
-				M.Transform(varrTemp, []V4{v})
-				bcs := varrTemp[0]
-				if bcs.x < 0 || bcs.y < 0 || 1-bcs.x-bcs.y < 0 {
-					continue
-				}
-				z := bcs.z
-				if i+j*width >= len(zbuff) || i+j*width < 0 {
-					continue
-				}
-				if zbuff[i+j*width] < z {
-					continue
-				}
-				zbuff[i+j*width] = z
-				// fmt.Printf("zval=%v\n", z)
-				if z > 2 {
-					z = 2
-				}
-				chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
-				if lightingEnabled {
-					//vn0 := ob.vns[f.vidx[0]-1]
-					//it := 0xff * dot(vn0, V4{3, 0, -1, 0})
-					//if it < 0 {
-					//	it = 0
-					//}
-					lInterpM.Transform(varrTemp, varrTemp)
-					it := varrTemp[0].z
-					chv = byte(it / 5)
-				}
-				putpixel(int(i), int(j), chv, chv, chv, 0, pix)
+				bcs := mvMult(M, v)
+				fshader(i, j, bcs, pix)
 			}
 		}
 	}
