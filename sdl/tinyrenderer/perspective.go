@@ -61,8 +61,11 @@ func FtoV(f [4]float64) V4 {
 }
 
 type Face struct {
-	vidx [3]int // vertex indices (in vertices global array)
-	tidx [3]int // texture-vertex indices (in textureVertices global array)
+	vidx   [3]int // vertex indices (in vertices global array)
+	tidx   [3]int // texture-vertex indices (in textureVertices global array)
+	txidxs [3]float64
+	tyidxs [3]float64
+	lvals  [3]float64 //lighting per vertex
 }
 
 // represents a 3D object and associated texture. Affine transformation matrix can be applied via Transform and will affect the drawn image, while keeping original data intact. Additional Transforms will use original data.
@@ -184,7 +187,7 @@ func getUVInterpolationM(q0, q1, q2 float64) M4 {
 }
 
 // get matrix to change basis for point to barycentric coords
-// matrix represents transformation (x,y) -> (u,v,z)  where z extrapolated from u,v
+// matrix represents transformation (x,y) -> (c0,c1,c2)
 func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	// get AB and AC vectors
 	u := vsub(v1, v0)
@@ -211,12 +214,12 @@ func getBaryM(v0, v1, v2 V4) (M M4, err error) {
 	r3 := [4]float64{0, 0, 0, 1}
 	M = M4{r0, r1, r2, r3}
 
-	// get partial reverse change of basis (z extrapolated from u,v)
-	R0 := [4]float64{1, 0, 0, 0}
-	R1 := [4]float64{0, 1, 0, 0}
-	R2 := [4]float64{u.z, w.z, 0, v0.z}
-	R3 := [4]float64{0, 0, 0, 1}
-	ZB := M4{R0, R1, R2, R3}
+	// change u,w coords to barycentric coords c0, c1, c2
+	r0 = [4]float64{-1, -1, 0, 1} //1 - c1 - c2 (p = c0v0 + c1v1 + c2v2); c0 + c1 + c2 = 1
+	r1 = [4]float64{1, 0, 0, 0}
+	r2 = [4]float64{0, 1, 0, 0}
+	r3 = [4]float64{0, 0, 0, 1}
+	ZB := M4{r0, r1, r2, r3}
 
 	M = mmMult(ZB, M)
 	return mmMult(M, *T), nil
@@ -249,53 +252,58 @@ func dot(a, b V4) float64 {
 }
 
 // fragment shader
-func fshader(i, j int, bcs V4, pix []byte) {
-	var outside bool
-	u, w := bcs.x, bcs.y
-	switch {
-	case u < 0.1 && w < 0.1:
-	case u > 0.9 && w < 0.1:
-	case w > 0.9 && u < 0.1:
-	default:
+func fshader(i, j int, bcs V4, f Face, v0, v1, v2 V4, tex []uint32, pix []byte) {
+	if bcs.x < 0 || bcs.y < 0 || bcs.z < 0 {
 		return
 	}
-
-	if bcs.x < 0 || bcs.y < 0 || 1-bcs.x-bcs.y < 0 {
-		outside = true
-		return
-	}
-	z := bcs.z
 	if i+j*width >= len(zbuff) || i+j*width < 0 {
 		return
 	}
+	z := bcs.x*v0.z + bcs.y*v1.z + bcs.z*v2.z
 	if zbuff[i+j*width] < z {
 		return
 	}
 	zbuff[i+j*width] = z
+	//fmt.Printf("z=%v\n", z)
 	// fmt.Printf("zval=%v\n", z)
 	chv := byte(min(0xff, 0xff-z*0xff/2.5)) // channel val
-	var bface bool
 	if lightingEnabled {
-		bcs = mvMult(lInterpM, bcs) //get lighting at point i,j from barycentric coords
-		it := bcs.z
-		if it < 0 {
-			bface = true
-			it = -it
-		}
-		if outside {
-			it = 0
-		}
+		//bcs = mvMult(lInterpM, bcs)
+		it := bcs.x*f.lvals[0] + bcs.y*f.lvals[1] + bcs.z*f.lvals[2] //get lighting at point i,j from barycentric coords
+		//if it < 0 {
+		//	it = 0
+		//}
 		chv = byte(it / 4)
 	}
-	if bface {
-		putpixel(int(i), int(j), chv, 0, 0, 0, pix)
-	} else {
-		putpixel(int(i), int(j), 0, chv, 0, 0, pix)
+	if textureEnabled {
+		txidx := bcs.x*f.txidxs[0] + bcs.y*f.txidxs[1] + bcs.z*f.txidxs[2]
+		tyidx := bcs.x*f.tyidxs[0] + bcs.y*f.tyidxs[1] + bcs.z*f.tyidxs[2]
+		//tidx := int(float64(tstride)*txidx + tyidx*float64(tstride)*float64(tstride))
+		xidxint := int(float64(tstride) * txidx)
+		yidxint := int(float64(tstride) * tyidx)
+		tidx := tstride*xidxint + tstride - yidxint
+		//fmt.Printf("texture coords (%v, %v)\n", txidx, tyidx)
+		tcol := tex[tidx]
+		tcb := bgraToBytes(tcol)
+		tb := tcb[0]
+		tg := tcb[1]
+		tr := tcb[2]
+		putpixel(int(i), int(j), byte(float64(chv)*float64(tr)/255), byte(float64(chv)*float64(tg)/255), byte(float64(chv)*float64(tb)/255), 0, pix)
+		return
 	}
+	putpixel(int(i), int(j), 0, chv, 0, 0, pix)
+}
+func bgraToBytes(c uint32) [4]byte {
+	b := byte(c >> 24)
+	g := byte(c >> 16 & 0xff)
+	r := byte(c >> 8 & 0xff)
+	a := byte(c & 0xff)
+	return [4]byte{b, g, r, a}
 }
 
 // draw a frame
 var lInterpM M4
+var tInterpM M4
 
 func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 	// clear screen
@@ -325,31 +333,39 @@ func drawFrame(surf *sdl.Surface, blank *sdl.Surface, ob *Obj) {
 		return
 	}
 	for _, f := range ob.fs {
+		f.txidxs[0] = ob.tvs[f.tidx[0]-1].x
+		f.txidxs[1] = ob.tvs[f.tidx[1]-1].x
+		f.txidxs[2] = ob.tvs[f.tidx[2]-1].x
+		f.tyidxs[0] = ob.tvs[f.tidx[0]-1].y
+		f.tyidxs[1] = ob.tvs[f.tidx[1]-1].y
+		f.tyidxs[2] = ob.tvs[f.tidx[2]-1].y
 		vxs := f.vidx //vertex indices
 		vs := []V4{ob.vs[vxs[0]-1], ob.vs[vxs[1]-1], ob.vs[vxs[2]-1]}
 		vns := []V4{ob.vns[vxs[0]-1], ob.vns[vxs[1]-1], ob.vns[vxs[2]-1]}
 		vShader(&vs[0], &vns[0])
 		vShader(&vs[1], &vns[1])
 		vShader(&vs[2], &vns[2])
-		it0, it1, it2 := vs[0].m, vs[1].m, vs[2].m
 		bbox := pixelbox(vs...)
 		M, err := getBaryM(vs[0], vs[1], vs[2])
 		if err != nil {
 			continue
 		}
+		it0, it1, it2 := vs[0].m, vs[1].m, vs[2].m
 		if lightingEnabled {
 			//get intensities for each vertex in face
-
-			//get matrix to interpolate intensities across face, given u,v coordinates
-			lInterpM = getUVInterpolationM(it0, it1, it2)
+			f.lvals[0] = it0
+			f.lvals[1] = it1
+			f.lvals[2] = it2
 		}
-		_ = lInterpM
+		//tcs := f.tidx[0], f.tidx[1], f.tidx[2]
+		//tInterpM = getUVInterpolationM(f.tidx)
+
 		for j := int(bbox.y0); j <= int(bbox.y1); j++ {
 			for i := int(bbox.x0); i <= int(bbox.x1); i++ {
 				// get barycentric coords for <i,j>
 				v := V4{float64(i), float64(j), 0, 1}
 				bcs := mvMult(M, v)
-				fshader(i, j, bcs, pix)
+				fshader(i, j, bcs, f, vs[0], vs[1], vs[2], texture, pix)
 			}
 		}
 	}

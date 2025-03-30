@@ -35,10 +35,10 @@ var (
 	window *sdl.Window
 	// file         *os.File
 	// textureVerts []F3
-	// texw, texh   int
-	done  bool // control graceful program exit
-	loops uint64
-	// texture      []uint32
+	tstride    int
+	done       bool // control graceful program exit
+	loops      uint64
+	texture    []uint32
 	blanksurf  *sdl.Surface
 	surf       *sdl.Surface
 	zbuff      []float64
@@ -186,9 +186,9 @@ func vShader(v *V4, vn *V4) {
 	*v = mvMult(*T0M, *v)
 	lpos := V4{3, 0, -1, 0} //light position
 	it := 0xff * dot(*vn, lpos)
-	//if it < 0 {
-	//	it = 0
-	//}
+	if it < 0 {
+		it = 0
+	}
 	v.m = it //for now, store the light intensity for the vertex in the "magic" coordinate m
 }
 
