@@ -157,6 +157,7 @@ func loadobjfile(filename string) *Obj {
 	return &ob
 }
 func setup() *Obj {
+	altFShaderEnabled = true
 	//set default values for global options
 	cpuprofile = true
 	//allocate zbuffer
