@@ -38,13 +38,14 @@ func main() {
 	// get data if cache not enabled or can't load cached data
 	if !cacheEnabled || !loadIdxData() {
 		//continuously update saved data files and print updates every 5 sec
-		go checkForStopSig()
+		go runStopChecker()
 		if persistData {
 			go indexStateUpdate()
 		}
 		buildSearchDB("/Users/maxgara/") //****do actual work
 	}
-	pprof.StopCPUProfile() //stop profiling after building data structs
+	//stop profiling after building data structs
+	pprof.StopCPUProfile()
 	fmem, _ := os.Create("memprof")
 	pprof.WriteHeapProfile(fmem)
 	fmt.Printf("enter search:")
@@ -60,7 +61,7 @@ func main() {
 // generate data for search -recursive
 func buildSearchDB(dir string) {
 	if stop {
-		//user requested stop - move on to search phase
+		//user requested stop - move on to search phase. This is monitored by runStopChecker goroutine
 		fmt.Println("stopped")
 		return
 	}
@@ -110,14 +111,14 @@ func indexContents(f string, idx int) {
 
 // primative free text search
 func searchPrim(key string) []string {
-	key = strings.Trim(key, "\n ")
+	key = strings.Trim(key, "\n\t ")
 	if len(key) < 3 {
 		fmt.Println("search too short")
 		return nil
 	}
-
 	p, ok := tokens[key]
 	if !ok {
+		fmt.Println("no matching token")
 		return nil
 	}
 	idxs := p.ref
@@ -152,7 +153,7 @@ func loadIdxData() bool {
 	return true
 }
 
-func checkForStopSig() {
+func runStopChecker() {
 	fmt.Printf("listening for stop...\n")
 	d := make([]byte, 1000)
 	os.Stdin.Read(d)
